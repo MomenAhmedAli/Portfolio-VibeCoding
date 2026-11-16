@@ -16,6 +16,11 @@ export function DotMatrixTransition({ theme, transitionId }: DotMatrixTransition
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (transitionId === 0) {
+      setScrambleTransitionOpen(true);
+      canvas.style.display = 'none';
+      return;
+    }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -27,7 +32,7 @@ export function DotMatrixTransition({ theme, transitionId }: DotMatrixTransition
     }
 
     canvas.style.display = 'block';
-    setScrambleTransitionOpen(false);
+    setScrambleTransitionOpen(true);
 
     const cellSize = 26;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -43,10 +48,9 @@ export function DotMatrixTransition({ theme, transitionId }: DotMatrixTransition
     const cols = Math.ceil(vw / cellSize) + 1;
     const rows = Math.ceil(vh / cellSize) + 1;
     const isInitialLoad = transitionId === 0;
-    const duration = isInitialLoad ? 720 : 520;
+    const duration = isInitialLoad ? 560 : 480;
     const startTime = performance.now();
     let rafId = 0;
-    let openedNotified = false;
 
     const fillColor = theme === 'dark' ? '#060D3D' : '#C8E3FA';
     const accentColor = '#2B3BE0';
@@ -55,15 +59,10 @@ export function DotMatrixTransition({ theme, transitionId }: DotMatrixTransition
       const elapsed = now - startTime;
       const t = Math.min(1, elapsed / duration);
 
-      if (!openedNotified && t >= 0.25) {
-        openedNotified = true;
-        setScrambleTransitionOpen(true);
-      }
-
       ctx.clearRect(0, 0, vw, vh);
 
-      // Ease-out radial opening wave from center outward
-      const eased = 1 - Math.pow(1 - t, 3);
+      // Constant linear radial opening wave from frame 1 with zero slowdown
+      const eased = t;
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {

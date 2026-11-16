@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { addFrameEffect, getLenisScrollSnapshot } from '../lib/lenisScrollBus';
+import { addFrameEffect } from '../lib/lenisScrollBus';
+import {
+  computeVoyageSectionProgress,
+  isCompassActiveInSection,
+} from '../lib/voyageChoreography';
 
 interface DualCompassScrollRailProps {
   onScrollToProgress: (progress: number, immediate?: boolean) => void;
@@ -7,31 +11,23 @@ interface DualCompassScrollRailProps {
 }
 
 interface BearingStop {
-  deg: number; // Continuous range: -80 (80° N) -> 0 (00° E/N) -> +190 (190° S)
+  deg: number; // Continuous range: -80 (80° N) -> 0 (00°) -> +190 (190° S)
   label?: string;
   major: boolean;
 }
 
-const MIN_DEG = -80; // 80° North
-const MAX_DEG = 190; // 190° South
-const TOTAL_SPAN = MAX_DEG - MIN_DEG; // 270° continuous sweep
+const MIN_DEG = 0;
+const MAX_DEG = 360;
+const TOTAL_SPAN = MAX_DEG - MIN_DEG;
 
 const BEARING_STOPS: BearingStop[] = (() => {
   const stops: BearingStop[] = [];
-  for (let d = MIN_DEG; d <= MAX_DEG; d += 5) {
-    const isCardinal = d === -80 || d === 0 || d === 90 || d === 190;
-    const isMajor = d % 20 === 0 || isCardinal;
+  for (let d = MIN_DEG; d <= MAX_DEG; d += 10) {
+    const isCardinal = d === 0 || d === 90 || d === 180 || d === 270 || d === 360;
+    const isMajor = d % 30 === 0 || isCardinal;
     let label: string | undefined;
-    if (d < 0 && d % 40 === 0) {
-      label = `${Math.abs(d)}°N`;
-    } else if (d === 0) {
-      label = '00°';
-    } else if (d === 90) {
-      label = '90°';
-    } else if (d === 190) {
-      label = '190°S';
-    } else if (d > 0 && d % 40 === 0 && d !== 160) {
-      label = `${d}°S`;
+    if (d % 90 === 0) {
+      label = `${String(d).padStart(3, '0')}°`;
     }
     stops.push({ deg: d, label, major: isMajor });
   }
@@ -39,10 +35,8 @@ const BEARING_STOPS: BearingStop[] = (() => {
 })();
 
 function formatBearing(deg: number): string {
-  const rounded = Math.round(deg);
-  if (rounded < 0) return `${Math.abs(rounded)}°N`;
-  if (rounded === 0) return '00°';
-  return `${rounded}°S`;
+  const rounded = Math.max(0, Math.min(360, Math.round(deg)));
+  return `${String(rounded).padStart(3, '0')}°`;
 }
 
 export function DualCompassScrollRail({
@@ -58,13 +52,13 @@ export function DualCompassScrollRail({
   const activeSideRef = useRef<'left' | 'right' | null>(null);
   const isPressedRef = useRef(false);
   const hoveredSideRef = useRef<'left' | 'right' | null>(null);
+  const isInShipSectionRef = useRef(false);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
   const onScrollRef = useRef(onScrollToProgress);
   onScrollRef.current = onScrollToProgress;
 
-  // Larger responsive center-vertical compass height (~64% of viewport)
   useEffect(() => {
     const updateHeight = () => {
       const vh = window.innerHeight || 800;
@@ -75,19 +69,33 @@ export function DualCompassScrollRail({
     return () => window.removeEventListener('resize', updateHeight);
   }, []);
 
-  // Drag/scrub listener when pressing either side compass rail
-  useEffect(() => {
-    const scrubFromClientY = (side: 'left' | 'right', clientY: number, immediate: boolean) => {
-      const el = side === 'left' ? leftTrackRef.current : rightTrackRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const rel = Math.min(Math.max((clientY - rect.top) / Math.max(rect.height, 1), 0), 1);
-      onScrollRef.current(rel, immediate);
-    };
+  // Map dragging on either compass rail directly across the Ship Voyage section bounds
+  const scrubShipSection = (side: 'left' | 'right', clientY: number, immediate: boolean) => {
+    const el = side === 'left' ? leftTrackRef.current : rightTrackRef.current;
+    const shipEl = document.getElementById('ship-voyage');
+    if (!el || !shipEl) return;
 
+    const rect = el.getBoundingClientRect();
+    const rel = Math.min(Math.max((clientY - rect.top) / Math.max(rect.height, 1), 0), 1);
+
+    const shipRect = shipEl.getBoundingClientRect();
+    const shipTopDoc = shipRect.top + window.scrollY;
+    const shipTravel = Math.max(shipRect.height - window.innerHeight, 1);
+    const maxDocScroll = Math.max(
+      document.documentElement.scrollHeight - window.innerHeight,
+      1
+    );
+    const targetGlobalProgress = Math.min(
+      Math.max((shipTopDoc + rel * shipTravel) / maxDocScroll, 0),
+      1
+    );
+    onScrollRef.current(targetGlobalProgress, immediate);
+  };
+
+  useEffect(() => {
     const handleMove = (e: PointerEvent) => {
       if (!isPressedRef.current || !activeSideRef.current) return;
-      scrubFromClientY(activeSideRef.current, e.clientY, true);
+      scrubShipSection(activeSideRef.current, e.clientY, true);
     };
 
     const handleUp = () => {
@@ -105,14 +113,14 @@ export function DualCompassScrollRail({
     };
   }, []);
 
-  // Unified ScrollBus frame loop: renders both Left & Right compasses with top/bottom semicircular curl & auto-hide visibility
+  // Only reveal DualCompassScrollRail while scrolling within #ship-voyage; hide completely everywhere else
   useEffect(() => {
-    let prevScrollY: number | null = null;
+    let prevProgress: number | null = null;
     let curlActivity = 0;
     let pressActivity = 0;
     let smoothProgress = 0;
     let visibilityAlpha = 0;
-    let lastActiveTime = -9999;
+    let shipSectionEl: HTMLElement | null = null;
 
     const drawCompassSide = (
       canvas: HTMLCanvasElement | null,
@@ -141,26 +149,21 @@ export function DualCompassScrollRail({
 
       const isDark = themeRef.current === 'dark';
       const isLeft = side === 'left';
-
-      // Center bearing driven steadily by scroll progress (80°N -> 190°S)
       const currentDeg = MIN_DEG + progress * TOTAL_SPAN;
 
-      // Baseline horizontal spine X: inset in the middle so top & bottom curve OUTWARD toward screen edges
       const baseSpineX = isLeft ? Math.round(w * 0.34) : Math.round(w * 0.66);
       const rawOffset = 14 + curlStrength * 16 + pressBoost * 7;
       const maxCurveOffset = rawOffset * (isLeft ? -1 : 1);
 
-      // Opposite outer semicircular curl profile: middle stays anchored, top & bottom flare outward!
       const getCurlMetrics = (yPx: number) => {
-        const yNorm = (yPx / h) * 2 - 1; // -1 at top, +1 at bottom
+        const yNorm = (yPx / h) * 2 - 1;
         const clamped = Math.max(-1, Math.min(1, yNorm));
         const profile = 1 - Math.sqrt(Math.max(0, 1 - clamped * clamped));
         const spineX = Math.max(5, Math.min(w - 5, baseSpineX + profile * maxCurveOffset));
         const shadeAlpha = 1 - profile * 0.84;
-        return { spineX, profile, shadeAlpha, yNorm: clamped };
+        return { spineX, profile, shadeAlpha };
       };
 
-      // 1. Fully transparent backdrop (0% fill / no white tint), drawing only the crisp curved meridian line
       ctx.save();
       const samples = 32;
       ctx.beginPath();
@@ -181,7 +184,6 @@ export function DualCompassScrollRail({
       ctx.stroke();
       ctx.restore();
 
-      // 2. Render Moving Graduated Degree Ticks & Cardinal Bearings (-80°N ... 190°S)
       const pxPerDeg = 3.45;
       const centerY = h * 0.5;
       const dir = isLeft ? 1 : -1;
@@ -195,7 +197,6 @@ export function DualCompassScrollRail({
         const deltaDeg = stop.deg - currentDeg;
         const linearY = centerY + deltaDeg * pxPerDeg;
 
-        // Cylindrical foreshortening near top & bottom edges
         const yNorm = Math.max(-1.05, Math.min(1.05, (linearY - centerY) / (h * 0.52)));
         if (Math.abs(yNorm) > 0.99) continue;
 
@@ -223,11 +224,9 @@ export function DualCompassScrollRail({
         }
       }
 
-      // 3. Center Fixed Compass Needle / Arrow & Active Bearing Readout
       const { spineX: midSpineX } = getCurlMetrics(centerY);
       const inkColor = isDark ? '#F4F6FF' : '#0D1117';
 
-      // Crisp White triangular compass pointer pointing cleanly at the active degree
       ctx.save();
       ctx.fillStyle = '#FFFFFF';
       ctx.beginPath();
@@ -242,63 +241,65 @@ export function DualCompassScrollRail({
         ctx.stroke();
       }
 
-      // Active degree badge beside the needle
       ctx.font = '700 11px "IBM Plex Sans", system-ui, sans-serif';
       ctx.fillStyle = inkColor;
       ctx.textAlign = isLeft ? 'left' : 'right';
       ctx.fillText(formatBearing(currentDeg), midSpineX + dir * 17, centerY);
 
-      // Subtle North (top) & South (bottom) anchor markers inside the curved caps
       ctx.font = '700 9px "IBM Plex Sans", system-ui, sans-serif';
       ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.78)' : 'rgba(13, 17, 23, 0.75)';
       const topMetrics = getCurlMetrics(12);
       const botMetrics = getCurlMetrics(h - 12);
-      ctx.fillText('N · 80°', topMetrics.spineX + dir * 5, 12);
-      ctx.fillText('S · 190°', botMetrics.spineX + dir * 5, h - 12);
+      ctx.fillText('000°', topMetrics.spineX + dir * 5, 12);
+      ctx.fillText('360°', botMetrics.spineX + dir * 5, h - 12);
       ctx.restore();
     };
 
-    const removeEffect = addFrameEffect(20, (timeMs, delta) => {
+    const removeEffect = addFrameEffect(20, (_timeMs, delta) => {
       const dt = Math.min(Math.max(delta, 1 / 240), 0.1);
-      const snap = getLenisScrollSnapshot();
-      const scrollY = snap.scrollTop;
-
-      const deltaY = prevScrollY == null ? 0 : Math.abs(scrollY - prevScrollY);
-      const velocity = deltaY / dt;
-      prevScrollY = scrollY;
-
-      const isScrolling = velocity > 4 || Math.abs(snap.velocity) > 0.05;
-      const isInteracting = isScrolling || isPressedRef.current || hoveredSideRef.current !== null;
-      if (isInteracting) {
-        lastActiveTime = timeMs;
+      if (!shipSectionEl || !shipSectionEl.isConnected) {
+        shipSectionEl = document.getElementById('ship-voyage');
       }
 
-      const shouldShow = isInteracting || timeMs - lastActiveTime < 1050;
-      const targetVis = shouldShow ? 1 : 0;
-      const visTau = targetVis > visibilityAlpha ? 0.08 : 0.28;
+      const vh = window.innerHeight || 1;
+      let activeInShip = false;
+      let voyageProg = 0;
+
+      if (shipSectionEl) {
+        const rect = shipSectionEl.getBoundingClientRect();
+        activeInShip = isCompassActiveInSection(rect.top, rect.bottom, vh);
+        voyageProg = computeVoyageSectionProgress(rect.top, rect.height, vh);
+      }
+
+      isInShipSectionRef.current = activeInShip;
+
+      const deltaProg = prevProgress == null ? 0 : Math.abs(voyageProg - prevProgress);
+      const progVel = (deltaProg / dt) * 1400;
+      prevProgress = voyageProg;
+
+      const targetVis = activeInShip ? 1 : 0;
+      const visTau = targetVis > visibilityAlpha ? 0.14 : 0.2;
       visibilityAlpha += (targetVis - visibilityAlpha) * (1 - Math.exp(-dt / visTau));
 
+      const interactivePointer = visibilityAlpha > 0.25 ? 'auto' : 'none';
       if (leftTrackRef.current) {
         leftTrackRef.current.style.opacity = visibilityAlpha.toFixed(3);
+        leftTrackRef.current.style.pointerEvents = interactivePointer;
       }
       if (rightTrackRef.current) {
         rightTrackRef.current.style.opacity = visibilityAlpha.toFixed(3);
+        rightTrackRef.current.style.pointerEvents = interactivePointer;
       }
 
-      const targetCurl = Math.min(Math.max(velocity / 1150, 0), 1);
-      const curlTau = targetCurl > curlActivity ? 0.14 : 0.44;
+      const targetCurl = Math.min(Math.max(progVel / 850, 0), 1);
+      const curlTau = targetCurl > curlActivity ? 0.14 : 0.4;
       curlActivity += (targetCurl - curlActivity) * (1 - Math.exp(-dt / curlTau));
 
       const targetPress = isPressedRef.current ? 1 : 0;
-      const pressTau = targetPress > pressActivity ? 0.10 : 0.36;
+      const pressTau = targetPress > pressActivity ? 0.1 : 0.34;
       pressActivity += (targetPress - pressActivity) * (1 - Math.exp(-dt / pressTau));
 
-      const maxScroll = Math.max(
-        document.documentElement.scrollHeight - window.innerHeight,
-        1
-      );
-      const rawProg = Math.min(Math.max(scrollY / maxScroll, 0), 1);
-      smoothProgress += (rawProg - smoothProgress) * (1 - Math.exp(-dt / 0.13));
+      smoothProgress += (voyageProg - smoothProgress) * (1 - Math.exp(-dt / 0.12));
 
       if (visibilityAlpha > 0.005) {
         drawCompassSide(
@@ -326,18 +327,14 @@ export function DualCompassScrollRail({
   }, []);
 
   const handlePointerDown = (side: 'left' | 'right', clientY: number) => {
+    if (!isInShipSectionRef.current) return;
     isPressedRef.current = true;
     activeSideRef.current = side;
-    const el = side === 'left' ? leftTrackRef.current : rightTrackRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const rel = Math.min(Math.max((clientY - rect.top) / Math.max(rect.height, 1), 0), 1);
-    onScrollToProgress(rel, false);
+    scrubShipSection(side, clientY, false);
   };
 
   return (
     <>
-      {/* Left Center-Vertical Outward-Curved Transparent Compass Scrollbar */}
       <div
         ref={leftTrackRef}
         onMouseEnter={() => {
@@ -348,14 +345,13 @@ export function DualCompassScrollRail({
         }}
         onPointerDown={(e) => handlePointerDown('left', e.clientY)}
         className="fixed left-0.5 sm:left-2.5 top-1/2 -translate-y-1/2 z-40 w-[72px] sm:w-[96px] cursor-ns-resize select-none"
-        style={{ height: `${trackHeight}px`, opacity: 0 }}
-        title="Compass Scroll Rail (80°N — 190°S)"
-        aria-label="Left Compass Scroll Indicator"
+        style={{ height: `${trackHeight}px`, opacity: 0, pointerEvents: 'none' }}
+        title="Radial Cycle Rail (000° — 360°)"
+        aria-label="Left Radial Cycle Scroll Indicator"
       >
         <canvas ref={leftCanvasRef} className="w-full h-full block pointer-events-none" />
       </div>
 
-      {/* Right Center-Vertical Outward-Curved Transparent Compass Scrollbar */}
       <div
         ref={rightTrackRef}
         onMouseEnter={() => {
@@ -366,9 +362,9 @@ export function DualCompassScrollRail({
         }}
         onPointerDown={(e) => handlePointerDown('right', e.clientY)}
         className="fixed right-0.5 sm:right-2.5 top-1/2 -translate-y-1/2 z-40 w-[72px] sm:w-[96px] cursor-ns-resize select-none"
-        style={{ height: `${trackHeight}px`, opacity: 0 }}
-        title="Compass Scroll Rail (80°N — 190°S)"
-        aria-label="Right Compass Scroll Indicator"
+        style={{ height: `${trackHeight}px`, opacity: 0, pointerEvents: 'none' }}
+        title="Radial Cycle Rail (000° — 360°)"
+        aria-label="Right Radial Cycle Scroll Indicator"
       >
         <canvas ref={rightCanvasRef} className="w-full h-full block pointer-events-none" />
       </div>

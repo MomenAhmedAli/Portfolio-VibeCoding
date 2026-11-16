@@ -25,13 +25,13 @@ export function Footer({ onOpenContact, onScrollToTop }: FooterProps) {
 
         {/* Middle Zone (Cols 5-8): Design Tagline */}
         <div className="col-span-6 md:col-span-4 px-2 sm:px-3 flex items-center opacity-70">
-          <span>PRODUCT &amp; UI DESIGN</span>
+          <span>PRODUCT &amp; UX DESIGN</span>
         </div>
 
         {/* Right Zone (Cols 9-12): Aligned Links matching top bar */}
         <div className="col-span-6 md:col-span-4 px-2 sm:px-3 flex items-center justify-between gap-3">
           <a
-            href="https://linkedin.com"
+            href="https://www.linkedin.com/in/supworld/"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:opacity-65 transition-opacity"
@@ -39,7 +39,7 @@ export function Footer({ onOpenContact, onScrollToTop }: FooterProps) {
             LINKEDIN
           </a>
           <a
-            href="https://behance.net"
+            href="https://www.behance.net/supworld"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:opacity-65 transition-opacity"

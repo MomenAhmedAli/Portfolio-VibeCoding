@@ -1,71 +1,131 @@
+import { MapPin } from 'lucide-react';
 import { useLenis } from 'lenis/react';
 
 interface HeaderProps {
-  onOpenContact: () => void;
+  onOpenContact?: () => void;
   onScrollToWork: () => void;
+  onScrollToAbout?: () => void;
+  onScrollToContact?: () => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
 }
 
 export function Header({
-  onOpenContact,
   onScrollToWork,
+  onScrollToAbout,
+  onScrollToContact,
   theme,
   onToggleTheme,
 }: HeaderProps) {
   const lenis = useLenis();
 
+  const handleScrollTop = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (lenis) {
+      lenis.scrollTo(0, { duration: 1.25 });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleAboutClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onScrollToAbout) {
+      onScrollToAbout();
+    } else if (lenis) {
+      lenis.scrollTo('#stats', { duration: 1.25 });
+    } else {
+      document.querySelector('#stats')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleContactClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (onScrollToContact) {
+      onScrollToContact();
+    } else if (lenis) {
+      lenis.scrollTo('#contact', { duration: 1.25 });
+    } else {
+      document.querySelector('#contact')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-[60px] flex items-center text-[11px] sm:text-xs bg-transparent pointer-events-none">
-      {/* 3-Column Alignment matching reference & ArchitecturalGrid */}
-      <div className="w-full px-[2.5%] grid grid-cols-12 items-center">
-        {/* Left Zone (Cols 1-4): Brand Wordmark */}
-        <div className="col-span-5 md:col-span-4 px-2 sm:px-3 flex items-center pointer-events-auto">
+    <header className="fixed top-0 left-0 right-0 z-40 h-[46px] flex items-center bg-transparent pointer-events-none">
+      <div className="w-full px-[2.5%] sm:px-[3.5%] grid grid-cols-12 items-center">
+        {/* Left Zone: Brand Wordmark */}
+        <div className="col-span-4 lg:col-span-3 flex items-center justify-start pointer-events-auto">
           <a
             href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              if (lenis) {
-                lenis.scrollTo(0, { duration: 1.25 });
-              } else {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
-            }}
-            className="font-bold text-xs sm:text-[13px] tracking-wider uppercase hover:opacity-70 transition-opacity font-sans whitespace-nowrap shrink-0"
+            onClick={handleScrollTop}
+            className="font-editorial font-medium text-2xl sm:text-[26px] tracking-tight leading-none hover:opacity-75 transition-opacity whitespace-nowrap shrink-0"
           >
-            MOAMEN.DESIGN
+            Moamen.
           </a>
         </div>
 
-        {/* Middle Zone (Cols 5-8): Clean Spacer aligned to grid */}
-        <div className="hidden md:block md:col-span-4 px-3" />
+        {/* Center Metadata Zone: Taking on new projects + Lives in Cairo, Egypt Together */}
+        <div className="hidden lg:flex lg:col-span-5 items-center justify-center gap-6 text-[11px] tracking-tight pointer-events-auto">
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: 'var(--text-color)' }}
+              aria-hidden="true"
+            />
+            <span className="opacity-70">Taking on new projects</span>
+            <span className="opacity-35">/</span>
+            <span className="font-medium">2 Spots</span>
+          </div>
 
-        {/* Right Zone (Cols 9-12): Navigation */}
-        <nav className="col-span-7 md:col-span-4 px-2 sm:px-3 flex items-center justify-end gap-5 sm:gap-7 font-pixel text-[10px] sm:text-[11px] uppercase pointer-events-auto">
+          <span className="opacity-20" aria-hidden="true">|</span>
+
+          <div className="flex items-center gap-1.5 whitespace-nowrap">
+            <MapPin className="w-3.5 h-3.5 opacity-75 shrink-0" aria-hidden="true" />
+            <span className="opacity-65">Lives in</span>
+            <span className="opacity-35">/</span>
+            <span className="font-medium opacity-95">Cairo, Egypt</span>
+          </div>
+        </div>
+
+        {/* Right Zone: Horizontal Row (About · Works · Contact · Theme) */}
+        <nav
+          aria-label="Primary Navigation"
+          className="col-span-8 lg:col-span-4 flex flex-row items-center justify-end gap-3.5 sm:gap-5 font-sans text-[11px] sm:text-xs font-medium tracking-tight leading-none pointer-events-auto"
+        >
+          <a
+            href="#stats"
+            onClick={handleAboutClick}
+            className="hover:opacity-60 transition-opacity whitespace-nowrap"
+          >
+            About
+          </a>
+
           <a
             href="#work"
             onClick={(e) => {
               e.preventDefault();
               onScrollToWork();
             }}
-            className="hover:opacity-65 transition-opacity whitespace-nowrap shrink-0"
+            className="hover:opacity-60 transition-opacity whitespace-nowrap"
           >
-            WORK
+            Works
+          </a>
+
+          <a
+            href="#contact"
+            onClick={handleContactClick}
+            className="hover:opacity-60 transition-opacity whitespace-nowrap"
+          >
+            Contact
           </a>
 
           <button
-            onClick={onOpenContact}
-            className="hover:opacity-65 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            CONTACT
-          </button>
-
-          <button
+            type="button"
             onClick={onToggleTheme}
-            className="hover:opacity-65 transition-opacity whitespace-nowrap shrink-0 cursor-pointer"
+            className="hover:opacity-60 transition-opacity whitespace-nowrap cursor-pointer opacity-80"
             title="Switch Light / Cobalt Dark Theme"
           >
-            {theme === 'dark' ? 'THEME[D]' : 'THEME[L]'}
+            {theme === 'dark' ? 'Theme [D]' : 'Theme [L]'}
           </button>
         </nav>
       </div>

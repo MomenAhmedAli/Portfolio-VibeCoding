@@ -1,71 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { addFrameEffect, getLenisScrollSnapshot } from '../lib/lenisScrollBus';
+import { addFrameEffect } from '../lib/lenisScrollBus';
 
 interface ArchitecturalGridProps {
   rowHeight?: number;
   theme?: 'light' | 'dark';
 }
 
-interface VideoFallingStar {
-  x: number; // normalized 0..1
-  y: number; // normalized 0..1 within top-of-page sky band
-  size: number;
-  baseAlpha: number;
-  twinkleSpeed: number;
-  twinkleOffset: number;
-  depth: number;
-  fallSpeed: number;
-  driftX: number;
-  trailLen: number;
-  isShooting: boolean;
+interface CurtainShaft {
+  uPos: number;       // normalized lateral anchor across viewport (-0.1..1.1)
+  vPos: number;       // normalized vertical anchor (0.1..0.9)
+  halfWidth: number;  // capsule/oval half-width factor relative to viewport width
+  halfLength: number; // capsule/oval half-length factor relative to viewport diagonal
+  angleDeg: number;   // diagonal sunbeam/curtain slant matching reference video
+  swaySpeed: number;
+  swayAmp: number;
+  mouseWeight: number;
+  phase: number;
+  alpha: number;
+  tone: 0 | 1 | 2;
 }
 
-interface MouseWavePulse {
-  x: number;
-  y: number;
-  bornAt: number;
-  duration: number;
-  maxRadius: number;
-  strength: number;
-  phaseOffset: number;
-  active: boolean;
-}
-
-function createVideoStars(count: number): VideoFallingStar[] {
-  const stars: VideoFallingStar[] = [];
-  for (let i = 0; i < count; i++) {
-    const depth = 0.28 + Math.random() * 0.92;
-    const isShooting = Math.random() > 0.72;
-    stars.push({
-      x: Math.random(),
-      y: Math.random(),
-      size: isShooting ? 1.3 + Math.random() * 1.1 : 0.8 + Math.random() * 1.2,
-      baseAlpha: isShooting ? 0.45 + Math.random() * 0.4 : 0.22 + Math.random() * 0.48,
-      twinkleSpeed: 0.9 + Math.random() * 1.6,
-      twinkleOffset: Math.random() * Math.PI * 2,
-      depth,
-      fallSpeed: isShooting
-        ? (0.048 + Math.random() * 0.055) * (0.7 + depth * 0.5)
-        : (0.016 + Math.random() * 0.024) * (0.65 + depth * 0.5),
-      driftX: (Math.random() - 0.35) * (isShooting ? 0.014 : 0.004),
-      trailLen: isShooting ? 22 + depth * 28 : 6 + depth * 8,
-      isShooting,
-    });
-  }
-  return stars;
-}
-
-function createWavePool(size: number): MouseWavePulse[] {
-  return Array.from({ length: size }, () => ({
-    x: 0,
-    y: 0,
-    bornAt: 0,
-    duration: 1100,
-    maxRadius: 150,
-    strength: 0,
-    phaseOffset: 0,
-    active: false,
-  }));
+// Soft diagonal curtain-like volumetric light shafts & rounded folds matching the reference video
+// that sway gently back and forth with mouse movement without harsh edges or thin lines.
+function createCurtainShafts(): CurtainShaft[] {
+  return [
+    { uPos: 0.14, vPos: 0.36, halfWidth: 0.085, halfLength: 0.56, angleDeg: -38, swaySpeed: 0.24, swayAmp: 26, mouseWeight: 42, phase: 0.2, alpha: 0.62, tone: 0 },
+    { uPos: 0.34, vPos: 0.44, halfWidth: 0.11, halfLength: 0.62, angleDeg: -36, swaySpeed: 0.20, swayAmp: 32, mouseWeight: 58, phase: 1.5, alpha: 0.78, tone: 1 },
+    { uPos: 0.52, vPos: 0.48, halfWidth: 0.135, halfLength: 0.66, angleDeg: -37, swaySpeed: 0.27, swayAmp: 36, mouseWeight: 70, phase: 2.8, alpha: 0.88, tone: 0 },
+    { uPos: 0.70, vPos: 0.52, halfWidth: 0.10, halfLength: 0.60, angleDeg: -35, swaySpeed: 0.22, swayAmp: 30, mouseWeight: 52, phase: 4.1, alpha: 0.74, tone: 2 },
+    { uPos: 0.88, vPos: 0.56, halfWidth: 0.095, halfLength: 0.54, angleDeg: -39, swaySpeed: 0.29, swayAmp: 24, mouseWeight: 44, phase: 5.3, alpha: 0.64, tone: 1 },
+  ];
 }
 
 export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: ArchitecturalGridProps) {
@@ -73,13 +37,10 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
   const [docHeight, setDocHeight] = useState(4500);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const glowRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
-  // Align top star intersections snugly right below the nav baseline
   const topOffset = 46;
-  // Align vertical columns to match top & bottom 3-column nav layout
   const colPcts = [2.5, 34.5, 66.5, 97.5];
 
   useEffect(() => {
@@ -95,6 +56,7 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
       const points: { x: number; y: number }[] = [];
 
       for (let r = 0; r <= rowsCount; r++) {
+        if (r === 2) continue;
         const y = r * rowHeight + topOffset;
         colPcts.forEach((pct) => {
           points.push({ x: pct, y });
@@ -114,34 +76,18 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
     };
   }, [rowHeight]);
 
-  // Unified background render:
-  // 1. Soft radial light circles (caustic ambient pools)
-  // 2. Video-like smooth falling stars at the top/beginning of the page
-  // 3. Fluid wave crests & organic undulating wave ripples following the mouse cursor
+  // Ambient autonomous diagonal light shafts over architectural grid (zero mouse effect)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const stars = createVideoStars(96);
-    const wavePool = createWavePool(14);
-    let waveCursor = 0;
+    const shafts = createCurtainShafts();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let vw = window.innerWidth;
     let vh = window.innerHeight;
-    let targetX = vw * 0.42;
-    let targetY = vh * 0.34;
-    let smoothX = targetX;
-    let smoothY = targetY;
-    let prevPointerX = targetX;
-    let prevPointerY = targetY;
-    let hasPointerMoved = false;
-    let pointerActiveAlpha = 0;
-    let pointerEnergy = 0;
-    let lastPointerMoveAt = 0;
-    let lastWaveSpawnAt = 0;
 
     const resizeCanvas = () => {
       vw = window.innerWidth;
@@ -152,276 +98,76 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
       canvas.style.width = `${vw}px`;
       canvas.style.height = `${vh}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      if (!hasPointerMoved) {
-        targetX = vw * 0.42;
-        targetY = vh * 0.34;
-      }
-    };
-
-    const spawnWave = (x: number, y: number, speedNorm: number, now: number) => {
-      const slot = wavePool[waveCursor];
-      waveCursor = (waveCursor + 1) % wavePool.length;
-      slot.x = x;
-      slot.y = y;
-      slot.bornAt = now;
-      slot.duration = 950 + speedNorm * 420;
-      slot.maxRadius = 115 + speedNorm * 95;
-      slot.strength = 0.55 + speedNorm * 0.45;
-      slot.phaseOffset = Math.random() * Math.PI * 2;
-      slot.active = true;
-    };
-
-    const handlePointerMove = (e: PointerEvent) => {
-      const now = performance.now();
-      const distMoved = Math.hypot(e.clientX - prevPointerX, e.clientY - prevPointerY);
-      prevPointerX = e.clientX;
-      prevPointerY = e.clientY;
-
-      hasPointerMoved = true;
-      targetX = e.clientX;
-      targetY = e.clientY;
-      lastPointerMoveAt = now;
-
-      const speedNorm = Math.min(1, distMoved / 38);
-      pointerEnergy = Math.min(1, pointerEnergy + 0.16 + speedNorm * 0.38);
-
-      if (!reducedMotion && distMoved > 5 && now - lastWaveSpawnAt > 70) {
-        lastWaveSpawnAt = now;
-        spawnWave(e.clientX, e.clientY, speedNorm, now);
-      }
     };
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('pointermove', handlePointerMove, { passive: true });
 
-    const render = (now: number, delta: number) => {
-      const dt = Math.min(Math.max(delta, 1 / 240), 0.1);
+    const render = (now: number) => {
       const t = now * 0.001;
       const isDark = themeRef.current === 'dark';
 
-      // Smoothly ease cursor position and wave energy
-      smoothX += (targetX - smoothX) * Math.min(1, dt * 8.5);
-      smoothY += (targetY - smoothY) * Math.min(1, dt * 8.5);
-      pointerEnergy = Math.max(0, pointerEnergy - dt * 1.15);
-
-      const isPointerRecent = hasPointerMoved && now - lastPointerMoveAt < 2200;
-      const targetPointerAlpha = isPointerRecent ? 1 : hasPointerMoved ? 0.3 : 0;
-      pointerActiveAlpha += (targetPointerAlpha - pointerActiveAlpha) * Math.min(1, dt * 5);
-
-      // Soft cursor-following radial illumination
-      if (glowRef.current) {
-        glowRef.current.style.background = isDark
-          ? `radial-gradient(620px circle at ${smoothX.toFixed(1)}px ${smoothY.toFixed(1)}px, rgba(56, 189, 248, 0.16) 0%, rgba(37, 99, 235, 0.12) 40%, rgba(6, 13, 61, 0) 76%)`
-          : `radial-gradient(620px circle at ${smoothX.toFixed(1)}px ${smoothY.toFixed(1)}px, rgba(255, 252, 238, 0.72) 0%, rgba(255, 248, 225, 0.28) 38%, rgba(200, 227, 250, 0) 76%)`;
-      }
-
       ctx.clearRect(0, 0, vw, vh);
-      const scrollY = getLenisScrollSnapshot().scrollTop;
-      const scrollParallax = scrollY * 0.08;
 
-      // =========================================================================
-      // 1. SOFT GLOWING LIGHT CIRCLES (Preserved diffused ambient water pools)
-      // =========================================================================
       ctx.save();
-      const causticCount = 9;
-      for (let i = 0; i < causticCount; i++) {
-        const phase = t * (0.42 + (i % 3) * 0.14) + i * 1.37;
-        const cx =
-          vw * (0.14 + ((i * 0.11) % 0.76)) +
-          Math.sin(phase) * (vw * 0.05) +
-          ((smoothX / Math.max(vw, 1)) - 0.5) * 28;
-        const cy =
-          vh * (0.12 + ((i * 0.13) % 0.62)) +
-          Math.cos(phase * 0.85) * (vh * 0.04) -
-          (scrollParallax * 0.25) % (vh * 0.4);
-        const rx = 140 + (i % 4) * 55 + Math.sin(phase * 1.3) * 28;
-        const ry = 46 + (i % 3) * 22 + Math.cos(phase * 1.1) * 14;
+      const diag = Math.hypot(vw, vh);
+      for (let i = 0; i < shafts.length; i++) {
+        const s = shafts[i];
+        const swayX = reducedMotion
+          ? 0
+          : Math.sin(t * s.swaySpeed + s.phase) * s.swayAmp;
+        const swayY = reducedMotion
+          ? 0
+          : Math.cos(t * s.swaySpeed * 0.78 + s.phase) * (s.swayAmp * 0.55);
+
+        const cx = s.uPos * vw + swayX;
+        const cy = s.vPos * vh + swayY;
+        const rw = Math.max(58, s.halfWidth * vw);
+        const rh = Math.max(240, s.halfLength * diag);
+        const tiltRad =
+          ((s.angleDeg + (reducedMotion ? 0 : Math.sin(t * 0.18 + s.phase) * 1.8)) *
+            Math.PI) /
+          180;
 
         ctx.save();
         ctx.translate(cx, cy);
-        ctx.rotate(-0.28 + Math.sin(phase * 0.5) * 0.12);
-        ctx.scale(1, ry / rx);
+        ctx.rotate(tiltRad);
+        ctx.scale(1, rh / rw);
 
-        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        const breath = reducedMotion ? 1 : 0.9 + 0.1 * Math.sin(t * 0.45 + s.phase);
+        const peak = s.alpha * breath * (isDark ? 0.13 : 0.34);
+        const mid = peak * 0.46;
+
+        let rgb = '255, 255, 255';
         if (isDark) {
-          g.addColorStop(0, `rgba(125, 211, 252, ${(0.085 + Math.sin(phase) * 0.025).toFixed(3)})`);
-          g.addColorStop(0.45, 'rgba(59, 130, 246, 0.045)');
-          g.addColorStop(1, 'rgba(6, 13, 61, 0)');
+          rgb =
+            s.tone === 0
+              ? '96, 165, 250'
+              : s.tone === 1
+              ? '125, 211, 252'
+              : '129, 140, 248';
         } else {
-          g.addColorStop(0, `rgba(255, 253, 240, ${(0.34 + Math.sin(phase) * 0.08).toFixed(3)})`);
-          g.addColorStop(0.5, 'rgba(255, 250, 220, 0.12)');
-          g.addColorStop(1, 'rgba(200, 227, 250, 0)');
+          rgb =
+            s.tone === 0
+              ? '255, 255, 255'
+              : s.tone === 1
+              ? '242, 250, 255'
+              : '224, 242, 254';
         }
-        ctx.fillStyle = g;
+
+        const shaftGrad = ctx.createRadialGradient(0, 0, rw * 0.05, 0, 0, rw);
+        shaftGrad.addColorStop(0, `rgba(${rgb}, ${peak.toFixed(3)})`);
+        shaftGrad.addColorStop(0.48, `rgba(${rgb}, ${mid.toFixed(3)})`);
+        shaftGrad.addColorStop(0.82, `rgba(${rgb}, ${(mid * 0.25).toFixed(3)})`);
+        shaftGrad.addColorStop(1, `rgba(${rgb}, 0)`);
+
+        ctx.fillStyle = shaftGrad;
         ctx.beginPath();
-        ctx.arc(0, 0, rx, 0, Math.PI * 2);
+        ctx.arc(0, 0, rw, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
       ctx.restore();
-
-      // =========================================================================
-      // 2. VIDEO-LIKE FALLING STARS AT THE START / TOP OF THE PAGE ONLY
-      // Smooth falling pinpoint starlight & tapered shooting streaks over Hero
-      // =========================================================================
-      const skyHeight = Math.max(vh * 1.08, 760);
-      if (scrollY < skyHeight + 60) {
-        const scrollVisibility = Math.max(0, Math.min(1, 1 - scrollY / (skyHeight * 0.92)));
-        ctx.save();
-        for (let i = 0; i < stars.length; i++) {
-          const s = stars[i];
-          if (!reducedMotion) {
-            s.y = (s.y + s.fallSpeed * dt) % 1;
-            s.x = (s.x + s.driftX * dt + 1) % 1;
-          }
-
-          const syDoc = s.y * skyHeight;
-          const sy = syDoc - scrollY * (0.65 + s.depth * 0.25);
-          if (sy < -40 || sy > vh + 20) continue;
-
-          const sx = s.x * vw;
-          // Smooth top & bottom envelope so the loop feels like a seamless video
-          const topFade = Math.min(1, s.y / 0.1);
-          const bottomFade = Math.min(1, (1 - s.y) / 0.24);
-          const envelope = topFade * bottomFade * scrollVisibility;
-          if (envelope <= 0.01) continue;
-
-          const twinkle = reducedMotion
-            ? 0.8
-            : 0.62 + 0.38 * Math.sin(t * s.twinkleSpeed + s.twinkleOffset);
-          const alpha = Math.min(0.95, s.baseAlpha * twinkle * envelope);
-
-          const trailDx = (s.driftX / Math.max(s.fallSpeed, 0.001)) * s.trailLen;
-          const tailX = sx - trailDx;
-          const tailY = sy - s.trailLen;
-
-          const trailGrad = ctx.createLinearGradient(tailX, tailY, sx, sy);
-          if (isDark) {
-            trailGrad.addColorStop(0, 'rgba(186, 230, 253, 0)');
-            trailGrad.addColorStop(1, `rgba(224, 242, 254, ${alpha.toFixed(3)})`);
-          } else {
-            trailGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-            trailGrad.addColorStop(1, `rgba(255, 255, 255, ${(alpha * 0.92).toFixed(3)})`);
-          }
-
-          ctx.strokeStyle = trailGrad;
-          ctx.lineWidth = s.isShooting ? s.size * 0.95 : s.size * 0.7;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(tailX, tailY);
-          ctx.lineTo(sx, sy);
-          ctx.stroke();
-
-          // Soft circular pinpoint starlight head (no hard polygon star shapes)
-          ctx.fillStyle = isDark
-            ? `rgba(240, 249, 255, ${alpha.toFixed(3)})`
-            : `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
-          ctx.beginPath();
-          ctx.arc(sx, sy, s.size * 0.72, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-
-      // =========================================================================
-      // 3. FLUID MOUSE WAVE EFFECT (Replaces cursor micro-squares, zero closed circles)
-      // Flowing layered water-wave crests + traveling wave wakes spawned on cursor movement
-      // =========================================================================
-      if (pointerActiveAlpha > 0.02) {
-        ctx.save();
-        const waveWidth = 260 + pointerEnergy * 110;
-        const lineCount = 6;
-        const strokeRgb = isDark ? '125, 211, 252' : '29, 78, 216';
-
-        // A) Flowing layered water-wave crests centered on cursor
-        for (let l = 0; l < lineCount; l++) {
-          const bandOffset = (l - (lineCount - 1) * 0.5) * 13;
-          const baseWaveY = smoothY + bandOffset;
-          const distRatio = Math.abs(l - (lineCount - 1) * 0.5) / 3;
-          const bandAlpha =
-            pointerActiveAlpha *
-            (0.22 + pointerEnergy * 0.34) *
-            (1 - distRatio * 0.55);
-
-          const xStart = smoothX - waveWidth * 0.5;
-          const xEnd = smoothX + waveWidth * 0.5;
-
-          const strokeGrad = ctx.createLinearGradient(xStart, baseWaveY, xEnd, baseWaveY);
-          strokeGrad.addColorStop(0, `rgba(${strokeRgb}, 0)`);
-          strokeGrad.addColorStop(0.22, `rgba(${strokeRgb}, ${(bandAlpha * 0.55).toFixed(3)})`);
-          strokeGrad.addColorStop(0.5, `rgba(${strokeRgb}, ${bandAlpha.toFixed(3)})`);
-          strokeGrad.addColorStop(0.78, `rgba(${strokeRgb}, ${(bandAlpha * 0.55).toFixed(3)})`);
-          strokeGrad.addColorStop(1, `rgba(${strokeRgb}, 0)`);
-
-          ctx.strokeStyle = strokeGrad;
-          ctx.lineWidth = l === 2 || l === 3 ? 1.55 : 1.0;
-          ctx.beginPath();
-
-          const step = 5;
-          for (let x = xStart; x <= xEnd; x += step) {
-            const norm = (x - smoothX) / (waveWidth * 0.5);
-            const bell = Math.exp(-norm * norm * 2.4);
-            const amp = (7 + pointerEnergy * 13) * bell;
-            const py =
-              baseWaveY +
-              Math.sin(x * 0.052 - t * 4.6 + l * 0.78) * amp +
-              Math.cos(x * 0.025 + t * 3.0 - l * 0.55) * (amp * 0.45);
-            if (x === xStart) ctx.moveTo(x, py);
-            else ctx.lineTo(x, py);
-          }
-          ctx.stroke();
-        }
-
-        // B) Open traveling water-wave wake crests spawned along pointer trail
-        for (let i = 0; i < wavePool.length; i++) {
-          const w = wavePool[i];
-          if (!w.active) continue;
-          const age = now - w.bornAt;
-          if (age >= w.duration) {
-            w.active = false;
-            continue;
-          }
-
-          const p = age / w.duration;
-          const easeOut = 1 - Math.pow(1 - p, 2.1);
-          const spanHalf = 36 + easeOut * w.maxRadius * 1.1;
-          const fade = Math.pow(1 - p, 1.5) * w.strength * pointerActiveAlpha;
-          if (fade <= 0.01) continue;
-
-          // Draw paired top & bottom open wave arcs drifting apart vertically
-          for (let dir = -1; dir <= 1; dir += 2) {
-            const yShift = dir * (6 + easeOut * 34);
-            const yBase = w.y + yShift;
-            const wxStart = w.x - spanHalf;
-            const wxEnd = w.x + spanHalf;
-
-            const wakeGrad = ctx.createLinearGradient(wxStart, yBase, wxEnd, yBase);
-            const wakeRgb = isDark ? '186, 230, 253' : '37, 99, 235';
-            wakeGrad.addColorStop(0, `rgba(${wakeRgb}, 0)`);
-            wakeGrad.addColorStop(0.5, `rgba(${wakeRgb}, ${(fade * 0.36).toFixed(3)})`);
-            wakeGrad.addColorStop(1, `rgba(${wakeRgb}, 0)`);
-
-            ctx.strokeStyle = wakeGrad;
-            ctx.lineWidth = Math.max(0.75, (1 - p * 0.45) * 1.4);
-            ctx.beginPath();
-
-            const step = 6;
-            for (let x = wxStart; x <= wxEnd; x += step) {
-              const norm = (x - w.x) / spanHalf;
-              const env = Math.max(0, 1 - norm * norm);
-              const waveY =
-                yBase +
-                Math.sin(norm * Math.PI * 2.5 - t * 5.2 + w.phaseOffset) *
-                  (5.5 * (1 - p * 0.4) * env);
-              if (x === wxStart) ctx.moveTo(x, waveY);
-              else ctx.lineTo(x, waveY);
-            }
-            ctx.stroke();
-          }
-        }
-        ctx.restore();
-      }
     };
 
     const removeEffect = addFrameEffect(15, render);
@@ -429,33 +175,28 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
     return () => {
       removeEffect();
       window.removeEventListener('resize', resizeCanvas);
-      window.removeEventListener('pointermove', handlePointerMove);
     };
   }, []);
 
   return (
     <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
-      {/* Base Background Surface matching Light Sky / Dark Cobalt Reference */}
+      {/* Base Background Surface strictly in site palette tones */}
       <div
         className="fixed inset-0 transition-colors duration-300"
         style={{
           background:
             theme === 'dark'
-              ? 'linear-gradient(155deg, #091559 0%, #060D3D 52%, #04092B 100%)'
+              ? 'linear-gradient(155deg, #091559 0%, #060D3D 52%, #071048 100%)'
               : 'linear-gradient(155deg, #BEE0FA 0%, #CEE8FC 50%, #C2E2FA 100%)',
         }}
       />
 
-      {/* Soft Light Caustic Circles, Video-Like Hero Falling Stars & Fluid Cursor Waves */}
+      {/* Ambient Diagonal Curtain Shafts */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {/* Smooth Cursor-Following Radial Illumination */}
-        <div ref={glowRef} className="absolute inset-0 will-change-[background]" />
-
-        {/* Dynamic Background Canvas */}
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
       </div>
 
-      {/* Vertical Hairline Lines with Clean 10px Space around Each Star Intersection */}
+      {/* Clean Static Architectural Vertical Hairline Lines */}
       {colPcts.map((pct, colIdx) => (
         <div
           key={`col-${colIdx}`}
@@ -468,8 +209,9 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
         />
       ))}
 
-      {/* Horizontal Hairline Lines with Exact Aligned Segments & 10px Gap around Every Intersection */}
+      {/* Clean Static Architectural Horizontal Hairline Lines */}
       {Array.from({ length: Math.ceil(docHeight / rowHeight) }).map((_, rowIdx) => {
+        if (rowIdx === 2) return null;
         const y = rowIdx * rowHeight + topOffset;
         const segments = [
           { left: '0px', right: 'calc(97.5% + 10px)' },
@@ -500,7 +242,7 @@ export function ArchitecturalGrid({ rowHeight = 320, theme = 'light' }: Architec
         );
       })}
 
-      {/* 4-Point '+'-Shaped Star Intersections */}
+      {/* Clean Static 4-Point '+'-Shaped Grid Intersections */}
       {gridPoints.map((pt, idx) => (
         <div
           key={idx}

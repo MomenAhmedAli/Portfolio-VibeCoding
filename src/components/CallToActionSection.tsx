@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Mail } from 'lucide-react';
 import { RollingNumber } from './TypewriterEffects';
 
 gsap.registerPlugin(ScrollTrigger);
 
-export function CallToActionSection() {
+interface CallToActionSectionProps {
+  onOpenContact?: () => void;
+}
+
+export function CallToActionSection({ onOpenContact }: CallToActionSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [hoveredWord, setHoveredWord] = useState<string | null>(null);
 
@@ -26,9 +30,9 @@ export function CallToActionSection() {
           {
             yPercent: 0,
             opacity: 1,
-            duration: 0.34,
-            stagger: 0,
-            ease: 'power3.out',
+            duration: 0.52,
+            stagger: 0.05,
+            ease: 'power2.out',
           },
           0
         )
@@ -38,10 +42,10 @@ export function CallToActionSection() {
           {
             y: 0,
             opacity: 1,
-            duration: 0.34,
-            ease: 'power3.out',
+            duration: 0.52,
+            ease: 'power2.out',
           },
-          0
+          0.08
         );
 
       ScrollTrigger.create({
@@ -58,10 +62,10 @@ export function CallToActionSection() {
   }, []);
 
   return (
-    <section ref={sectionRef} className="w-full pt-24 pb-20 px-[2.5%] relative overflow-hidden">
+    <section id="contact" ref={sectionRef} className="w-full pt-24 pb-24 px-[2.5%] relative overflow-hidden">
       <div data-scroll-shift className="w-full px-2 sm:px-3 flex flex-col justify-between space-y-14 sm:space-y-20 will-change-transform">
         {/* Massive Final Frame Phrase: Get ready for beyond. + //03 side marker */}
-        <div className="flex items-start justify-between gap-4 select-none">
+        <div data-scroll-shade className="flex items-start justify-between gap-4 select-none will-change-transform">
           <div className="space-y-1 sm:space-y-2">
             {lines.map((line, idx) => (
               <div
@@ -91,7 +95,8 @@ export function CallToActionSection() {
         {/* Bottom Row: MOAMEN | 2026 centered | Behance & LinkedIn with icons */}
         <div
           data-cta-footer
-          className="pt-8 grid grid-cols-1 md:grid-cols-12 items-center gap-5 font-pixel text-[10px] sm:text-xs uppercase"
+          data-scroll-shade
+          className="pt-8 grid grid-cols-1 md:grid-cols-12 items-center gap-5 font-pixel text-[10px] sm:text-xs uppercase will-change-transform"
         >
           {/* Left Zone (Cols 1-4): MOAMEN only */}
           <div className="md:col-span-4 flex items-center justify-start opacity-85">
@@ -103,10 +108,20 @@ export function CallToActionSection() {
             <RollingNumber value="2026" duration={0.34} stagger={0} start="top 96%" />
           </div>
 
-          {/* Right Zone (Cols 9-12): Behance & LinkedIn with brand icons */}
-          <div className="md:col-span-4 flex items-center md:justify-end gap-6 sm:gap-8">
+          {/* Right Zone (Cols 9-12): Contact, Behance & LinkedIn with icons */}
+          <div className="md:col-span-4 flex flex-wrap items-center md:justify-end gap-5 sm:gap-7">
+            <button
+              type="button"
+              onClick={onOpenContact}
+              className="group inline-flex items-center gap-2 hover:opacity-65 transition-opacity border-b border-current pb-1 cursor-pointer"
+            >
+              <Mail className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>CONTACT</span>
+              <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </button>
+
             <a
-              href="https://behance.net"
+              href="https://www.behance.net/supworld"
               target="_blank"
               rel="noopener noreferrer"
               className="group inline-flex items-center gap-2 hover:opacity-65 transition-opacity border-b border-current pb-1"
@@ -134,7 +149,7 @@ export function CallToActionSection() {
             </a>
 
             <a
-              href="https://linkedin.com"
+              href="https://www.linkedin.com/in/supworld/"
               target="_blank"
               rel="noopener noreferrer"
               className="group inline-flex items-center gap-2 hover:opacity-65 transition-opacity border-b border-current pb-1"

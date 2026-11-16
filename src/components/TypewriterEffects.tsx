@@ -32,10 +32,12 @@ interface TypewriterTextProps {
   className?: string;
   showCursor?: boolean;
   startOnView?: boolean;
+  typingColor?: string;
 }
 
 /**
  * GSAP-powered character-by-character typewriter effect for light editorial copy.
+ * Optionally highlights characters in typingColor while actively typing, then fades back to inherit color.
  */
 export function TypewriterText({
   text,
@@ -44,6 +46,7 @@ export function TypewriterText({
   className = '',
   showCursor = true,
   startOnView = true,
+  typingColor,
 }: TypewriterTextProps) {
   const containerRef = useRef<HTMLSpanElement>(null);
   const textRef = useRef<HTMLSpanElement>(null);
@@ -60,6 +63,9 @@ export function TypewriterText({
 
     const ctx = gsap.context(() => {
       textEl.textContent = '';
+      if (typingColor) {
+        textEl.style.color = typingColor;
+      }
 
       if (cursorRef.current) {
         gsap.to(cursorRef.current, {
@@ -77,12 +83,18 @@ export function TypewriterText({
         delay: delayMs / 1000,
         ease: 'none',
         paused: startOnView,
+        onStart: () => {
+          if (typingColor) {
+            textEl.style.color = typingColor;
+          }
+        },
         onUpdate: () => {
           const nextCount = Math.round(proxy.count);
           textEl.textContent = chars.slice(0, nextCount).join('');
         },
         onComplete: () => {
           textEl.textContent = text;
+          textEl.style.color = '';
           if (cursorRef.current) {
             cursorRef.current.style.display = 'none';
           }
@@ -93,6 +105,9 @@ export function TypewriterText({
         const restartTyping = () => {
           proxy.count = 0;
           textEl.textContent = '';
+          if (typingColor) {
+            textEl.style.color = typingColor;
+          }
           if (cursorRef.current) {
             cursorRef.current.style.display = 'inline-block';
           }
@@ -103,6 +118,7 @@ export function TypewriterText({
           typeTween.pause(0);
           proxy.count = 0;
           textEl.textContent = '';
+          textEl.style.color = '';
         };
 
         ScrollTrigger.create({
@@ -118,15 +134,19 @@ export function TypewriterText({
     }, containerRef);
 
     return () => ctx.revert();
-  }, [text, speedMs, delayMs, startOnView]);
+  }, [text, speedMs, delayMs, startOnView, typingColor]);
 
   return (
     <span ref={containerRef} className={className}>
-      <span ref={textRef} />
+      <span
+        ref={textRef}
+        className="transition-colors duration-700 ease-out"
+      />
       {showCursor && (
         <span
           ref={cursorRef}
           className="inline-block w-[0.45em] h-[0.9em] align-middle ml-0.5 bg-current"
+          style={typingColor ? { backgroundColor: typingColor } : undefined}
           aria-hidden="true"
         />
       )}
@@ -254,8 +274,8 @@ export function RollingNumber({
   value,
   className = '',
   triggerKey = 0,
-  duration = 0.68,
-  stagger = 0.14,
+  duration = 0.52,
+  stagger = 0,
   start = 'top 94%',
 }: RollingNumberProps) {
   const rootRef = useRef<HTMLSpanElement>(null);
@@ -280,7 +300,7 @@ export function RollingNumber({
             {
               yPercent: -digit * 10,
               duration: duration + idx * stagger,
-              ease: 'power3.out',
+              ease: 'none',
               overwrite: 'auto',
             }
           );

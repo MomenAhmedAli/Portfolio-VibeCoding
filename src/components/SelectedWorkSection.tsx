@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Project } from '../types';
-import { ArrowUpRight } from 'lucide-react';
-import { DotMatrixHoverOverlay } from './DotMatrixHoverOverlay';
 import { RollingNumber } from './TypewriterEffects';
 import { DomSyncWebGL, DomSyncProjectSpec } from './DomSyncWebGL';
 import { ProjectLogoReveal } from './ProjectLogoReveal';
@@ -27,76 +25,154 @@ export const PROJECTS_DATA: WorkItem[] = [
     id: 'nurabi',
     indexCode: '3/2',
     title: 'NURABI',
-    shortLabel: 'PRIVATE TUTORING PLATFORM',
-    category: 'WEBSITE',
+    arabicTitle: 'نُربّي',
+    shortLabel: 'EGYPTIAN CURRICULUM EDTECH',
+    category: 'EDUCATION APP WEBSITE',
     years: '2025-2027',
-    tagline: 'منصتك المفضلة للحصول على دروس خصوصية عالية الجودة',
+    tagline: 'منصتك التعليمية لشرح المناهج المصرية من الابتدائي للثانوي العام',
     description:
-      'An all-in-one private tutoring and live session platform crafted for the MENA region with rich Arabic typography, interactive teacher matching, and seamless booking calendar.',
-    tags: ['Web Design', 'Arabic Typography', 'EdTech SaaS', 'Design System'],
+      'منصة تعليمية متكاملة مصممة لطلاب المدارس المصرية من المرحلة الابتدائية وحتى الثانوية العامة، تجمع بين الحصص التفاعلية المباشرة، حجز مواعيد المدرسين، ومتابعة تقدم الطالب في كل مادة.',
+    writtenNarrative:
+      'نُربّي هو موقع تعليمي مصري متكامل لطلاب الابتدائي والإعدادي والثانوي العام. صممنا فيه نظام حجز مواعيد الحصص الفردية والجماعية، وجداول المراجعة الأسبوعية، وبث مباشر واضح بدون تشتيت عشان كل طالب يذاكر بالنظام والميعاد اللي يناسب مستواه.',
+    tags: ['Egyptian K-12', 'RTL Typography', 'Live Tutoring', 'Schedule System'],
     role: 'Lead UI/UX & Design Systems',
+    scheduleTiles: [
+      { label: 'ميعاد الإطلاق', value: 'SEP 2025 — Q4 2027' },
+      { label: 'المراحل الدراسية', value: 'ابتدائي · إعدادي · ثانوي عام' },
+      { label: 'نظام المواعيد', value: 'حصص لايف بجدول أسبوعي مرن' },
+      { label: 'حالة المنصة', value: 'LIVE · +350K طالب' },
+    ],
+    workflowSteps: [
+      {
+        code: '01',
+        title: 'اختيار المرحلة والمنهج',
+        detail: 'تحديد الصف الدراسي من أولى ابتدائي لحد تالتة ثانوي عام وفق توزيع وزارة التربية والتعليم.',
+      },
+      {
+        code: '02',
+        title: 'تحديد الميعاد والمدرس',
+        detail: 'عرض جدول المواعيد المتاحة لكل مدرس وحجز الحصة المناسبة بتأكيد فوري وتنبيه قبل الموعد.',
+      },
+      {
+        code: '03',
+        title: 'الفصل التفاعلي والمتابعة',
+        detail: 'دخول قاعة الشرح المباشر مع سبورة تفاعلية، ملخصات PDF، وتقارير مستوى مستمرة لولي الأمر.',
+      },
+    ],
     deliverables: [
-      'Web Portal Architecture',
-      'RTL Arabic Typography Engine',
-      'Booking & Schedule Calendar',
-      'Interactive Video Class HUD',
+      'هيكل المنصة التعليمية للمناهج المصرية',
+      'نظام جدولة وحجز المواعيد الذكي',
+      'تجربة قاعة الشرح المباشر والاختبارات',
+      'هوية بصرية وخط عربي مخصص (نُربّي)',
     ],
     metrics: ['+140% Booking Conversion', '4.9★ Tutor Satisfaction', '350K+ Monthly Learners'],
     colorTheme: 'from-[#0b3b60] via-[#092947] to-[#041526]',
     accentBg: '#092b4a',
     previewType: 'arabic-edtech',
-    imageSrc: '/assets/aistudio/project_nurabi.png',
-    hoverImageSrc: '/assets/aistudio/nurabi_2fac4ca4.png',
+    imageSrc: '/assets/aistudio/Arabic_Blue_Online_Learning_Platform_2c685461.png',
+    hoverImageSrc: '/assets/aistudio/Arabic_Calligraphy_and_Geometric_Emblem_1c258821.png',
   },
   {
     id: 'rivka',
     indexCode: '3/3',
     title: 'RIVKA',
-    shortLabel: 'WILDERNESS CAMPSITE EXPEDITION',
-    category: 'MOBILE APP',
+    arabicTitle: 'رفقة',
+    shortLabel: 'WILDERNESS CAMPS & OASES',
+    category: 'TRAVEL APP',
     years: '2025-2026',
-    tagline: "Find your camp in Egypt's wild places",
+    tagline: 'كامبات هادئة للدراسة والسياحة والتجمع في الصحراء وسيوة والبحر',
     description:
-      'A mobile-first expedition and wilderness campsite discovery app connecting adventurous travelers with authentic Bedouin hosts across Dahab, Siwa Oasis, and the White Desert.',
-    tags: ['Mobile iOS / Android', 'Design System', 'GPS & Offline Maps', '3D Terrain Mockups'],
+      'تطبيق رفقة مخصص لاستكشاف وحجز الكامبات في الأماكن الهادئة بعيداً عن الزحام، مثل سيوة والصحراء البيضاء والشواطئ البعيدة، لتنظيم رحلات الدراسة والسياحة والتجمعات الهادفة.',
+    writtenNarrative:
+      'رفقة هو دليل وتطبيق لحجز وتنظيم الكامبات في المناطق الصحراوية والبحرية الهادئة وفي الواحات زي سيوة. هدفنا نقرب الناس من الأماكن الهادية عبر معسكرات متخصصة للدراسة، السياحة، أو التجمع مع ناس بتشاركهم نفس الاهتمامات بعيد عن صخب المدينة.',
+    tags: ['Siwa & Desert', 'Study Camps', 'Community Retreats', 'Offline GPS'],
     role: 'Principal Mobile Product Designer',
+    scheduleTiles: [
+      { label: 'ميعاد المواسم', value: 'OCT 2025 — MAY 2026' },
+      { label: 'نطاق الكامبات', value: 'سيوة · الصحراء · بحر هادئ' },
+      { label: 'أنواع التجمعات', value: 'كامب دراسة · سياحة · تجمع' },
+      { label: 'حالة التطبيق', value: 'IOS & ANDROID · 85K' },
+    ],
+    workflowSteps: [
+      {
+        code: '01',
+        title: 'استكشاف الأماكن الهادئة',
+        detail: 'اختيار الوجهة حسب الهدوء والكثافة السكانية بين سيوة، الصحراء، أو الشواطئ المعزولة.',
+      },
+      {
+        code: '02',
+        title: 'ميعاد ونوع الكامب',
+        detail: 'تصفح مواعيد أفواج الكامبات المخصصة للدراسة الهادئة، التأمل السياحي، أو التجمعات الجماعية.',
+      },
+      {
+        code: '03',
+        title: 'خريطة المسار والتجمع',
+        detail: 'مزامنة الإحداثيات وخرائط أوفلاين آمنة للوصول للكامب والتواصل مع منظمي المكان والمجموعة.',
+      },
+    ],
     deliverables: [
-      'iOS & Android Design Guidelines',
-      'Campsite Discovery Feed',
-      'Offline Route Navigator',
-      'Host Verification Engine',
+      'تجربة حجز الكامبات الدراسية والسياحية',
+      'خرائط صحراوية تعمل بدون إنترنت',
+      'تقويم مواعيد الأفواج والمواسم المناخية',
+      'نظام التحقق من المضيفة والمخيمات',
     ],
     metrics: ['85K Active Campers', '4.8★ App Store Rating', '98% Positive Host Sentiment'],
     colorTheme: 'from-[#be976b] via-[#a3794f] to-[#7a5530]',
     accentBg: '#96714a',
     previewType: 'desert-app',
-    imageSrc: '/assets/aistudio/project_rivka.png',
+    imageSrc: '/assets/aistudio/Rivka_Desert_App_Showcase_0c2aebe6.png',
     hoverImageSrc: '/assets/aistudio/rivka_a6cdcbf7.png',
   },
   {
-    id: 'simulation-game',
+    id: 'tawreed',
     indexCode: '3/4',
-    title: 'SIMULATION GAME',
-    shortLabel: 'ROBLOX SUPPORTAL ECONOMY & HUD',
-    category: 'ROBLOX UI',
-    years: '2025',
-    tagline: 'Supportal Game Economy & In-App Shop Interface',
+    title: 'TAWREEDAT',
+    arabicTitle: 'توريدات',
+    shortLabel: 'B2B SUPPLY CHAIN & GPS TRACKING',
+    category: 'B2B PLATFORM',
+    years: '2025-2026',
+    tagline: 'منصة B2B لربط الشركات والموردين وتتبع التوريدة لحظياً من العقد للاستلام',
     description:
-      'Complete UI/UX overhaul of a Roblox simulation game HUD including Cash Display, Live Stack Meter, and Ability Controls. Balances playful reward psychology with clean purchase flows.',
-    tags: ['Roblox UI / UX', 'Virtual Economy', 'HUD Animation', 'Ability Controls'],
-    role: 'Game Interface Designer',
-    deliverables: [
-      'Roblox In-Game HUD Architecture',
-      'Cash & Gems Currency Display',
-      'Live Stack Meter & Ability Buttons',
-      'Sound Effect & Haptic Specs',
+      'موقع B2B يربط الشركات المشترية بالمصانع والموردين في مصر، ويدير دورة التوريد كاملة بدءاً من توقيع العقد الإلكتروني وحتى متابعة الشحنة على الخريطة ومعرفة إحداثياتها ومرحلتها لحظة بلحظة حتى التسليم.',
+    writtenNarrative:
+      'توريدات هي منصة B2B متكاملة بتوصل شركات التوريد والمصانع بالمشترين في مكان واحد. الرحلة بتبدأ من إبرام العقد وتحديد المواصفات والكميات، وتستمر بتتبع الشحنة لحظياً على الخريطة عشان تعرف إحداثياتها فين بالظبط دلوقتي وفي أي مرحلة من التحضير أو الشحن لحد ما تستلم التوريدة بالكامل وتأكد وصولها.',
+    tags: ['B2B Marketplace', 'Digital Contracts', 'Live GPS Coordinates', 'Logistics Stage'],
+    role: 'Lead Product & Dashboard Architect',
+    scheduleTiles: [
+      { label: 'ميعاد التنفيذ', value: 'JAN 2025 — 2026' },
+      { label: 'دورة العقد', value: 'تعاقد رقمي وتوثيق فوري' },
+      { label: 'التتبع والإحداثيات', value: 'GPS حي + حالة كل مرحلة' },
+      { label: 'نطاق الشبكة', value: 'مصانع وموردو مصر B2B' },
     ],
-    metrics: ['+28% ARPPU Increase', '+42% Starter Bundle Adoption', '60fps Canvas Performance'],
-    colorTheme: 'from-[#1e1b4b] via-[#2e1065] to-[#172554]',
-    accentBg: '#2a1a4e',
-    previewType: 'game-hud',
-    imageSrc: '/assets/aistudio/project_game.png',
-    hoverImageSrc: '/assets/aistudio/Frame_24_36a25a33.png',
+    workflowSteps: [
+      {
+        code: '01',
+        title: 'الربط وتوقيع العقد',
+        detail: 'مطابقة المشتري مع المورد المعتمد واعتماد بنود العقد والأسعار وميعاد التوريد المتفق عليه.',
+      },
+      {
+        code: '02',
+        title: 'مراقبة مراحل التجهيز والشحن',
+        detail: 'عرض المرحلة الحالية للشحنة لحظياً: التجهيز في المصنع، التحميل، الفحص، والانطلاق على الطريق.',
+      },
+      {
+        code: '03',
+        title: 'الإحداثيات الحية والاستلام',
+        detail: 'تحديد إحداثيات الشحنة الدقيقة على خريطة لوحة التحكم في أي لحظة حتى إثبات التسليم النهائي للمشتري.',
+      },
+    ],
+    deliverables: [
+      'بوابة سوق المصانع والموردين (B2B)',
+      'لوحة تتبع الإحداثيات الحية GPS والخط الزمني',
+      'تدفق التعاقدات الرقمية ومحاضر الاستلام',
+      'نظام فلاتر الموردين بالمناطق والخرائط',
+    ],
+    metrics: ['100% Live Route Visibility', '18,400+ Active B2B Orders', '3.4x Faster Contracting'],
+    colorTheme: 'from-[#3b0d16] via-[#24131c] to-[#111827]',
+    accentBg: '#5e1424',
+    previewType: 'tawreed-b2b',
+    imageSrc: '/assets/aistudio/hook_70c6e796.png',
+    hoverImageSrc: '/assets/aistudio/Modern_Arabic_Supplier_Marketplace_Dashboard_508fd2df.png',
   },
 ];
 
@@ -104,11 +180,7 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
   const sectionRef = useRef<HTMLElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const imageBoxRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const modalTimerRef = useRef<number | null>(null);
-  const lastWaveAtRef = useRef<number>(0);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [pressedId, setPressedId] = useState<string | null>(null);
-  const [waveTriggers, setWaveTriggers] = useState<Record<string, number>>({});
   const [webglReady, setWebglReady] = useState(false);
 
   const projectSpecs: DomSyncProjectSpec[] = useMemo(
@@ -116,6 +188,7 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
       PROJECTS_DATA.map((project) => ({
         id: project.id,
         imageSrc: project.imageSrc,
+        hoverImageSrc: project.hoverImageSrc,
       })),
     []
   );
@@ -128,15 +201,15 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
         {
           y: 0,
           opacity: 1,
-          duration: 0.65,
-          ease: 'power3.out',
+          duration: 0.6,
+          ease: 'power2.out',
           paused: true,
         }
       );
 
       ScrollTrigger.create({
         trigger: '[data-work-header]',
-        start: 'top 90%',
+        start: 'top 92%',
         end: 'bottom 8%',
         onEnter: () => headerTween.restart(),
         onLeave: () => headerTween.reverse(),
@@ -147,17 +220,15 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
       cardRefs.current.forEach((cardEl) => {
         if (!cardEl) return;
 
-        // Crisp, fast entrance (card header + image together) as soon as scroll nears the card,
-        // matching the Hero portrait entrance speed, and reversible when scrolling back above.
         const enterTween = gsap.fromTo(
           cardEl,
-          { y: 36, scale: 0.98, opacity: 0 },
+          { y: 36, scale: 0.985, opacity: 0 },
           {
             y: 0,
             scale: 1,
             opacity: 1,
-            duration: 0.52,
-            ease: 'power3.out',
+            duration: 0.6,
+            ease: 'power2.out',
             paused: true,
           }
         );
@@ -175,30 +246,11 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
 
     return () => {
       ctx.revert();
-      if (modalTimerRef.current) {
-        window.clearTimeout(modalTimerRef.current);
-      }
     };
   }, []);
 
-  const triggerWave = (projectId: string) => {
-    const now = performance.now();
-    if (now - lastWaveAtRef.current < 180) return;
-    lastWaveAtRef.current = now;
-    setWaveTriggers((prev) => ({
-      ...prev,
-      [projectId]: (prev[projectId] || 0) + 1,
-    }));
-  };
-
   const handleCardClick = (project: WorkItem) => {
-    triggerWave(project.id);
-    if (modalTimerRef.current) {
-      window.clearTimeout(modalTimerRef.current);
-    }
-    modalTimerRef.current = window.setTimeout(() => {
-      onSelectProject(project);
-    }, 360);
+    onSelectProject(project);
   };
 
   return (
@@ -207,24 +259,23 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
       ref={sectionRef}
       className="w-full py-20 sm:py-28 px-6 sm:px-12 lg:px-20 relative z-10"
     >
-      {/* DOM-Synced WebGL Shader Canvas (velocity curl + directional top/bottom 3D lift + wave ripple) */}
+      {/* DOM-Synced WebGL Shader Canvas (renders BOTH idle & hovered states with unbroken 3D curl & scroll shade) */}
       <DomSyncWebGL
         projects={projectSpecs}
         imageBoxRefs={imageBoxRefs}
         cardRefs={cardRefs}
         hoveredId={hoveredId}
-        pressedId={pressedId}
-        waveTriggers={waveTriggers}
+        theme={theme}
         onReadyChange={setWebglReady}
       />
 
       <div className="max-w-5xl mx-auto relative z-20">
         {/* Section Header */}
         <div data-work-header className="flex items-baseline justify-between mb-14 sm:mb-20 relative z-20">
-          <h2 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tighter uppercase font-sans">
+          <h2 data-scroll-shade className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tighter uppercase font-sans will-change-transform">
             SELECTED WORK
           </h2>
-          <span className="font-pixel text-xs sm:text-sm font-semibold opacity-75 tracking-tight shrink-0 inline-flex items-baseline">
+          <span data-scroll-shade className="font-pixel text-xs sm:text-sm font-semibold opacity-75 tracking-tight shrink-0 inline-flex items-baseline will-change-transform">
             <span>//</span>
             <RollingNumber value="02" />
           </span>
@@ -235,101 +286,65 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
           {PROJECTS_DATA.map((project, idx) => {
             const isLeft = idx % 2 === 0;
             const isHovered = hoveredId === project.id;
-            const isPressed = pressedId === project.id;
-
-            const fallbackZoomClass = isPressed
-              ? 'scale-[0.985]'
-              : isHovered
-              ? 'scale-[1.06]'
-              : 'scale-100';
+            const fallbackZoomClass = isHovered ? 'scale-[1.05]' : 'scale-100';
 
             return (
               <div
                 key={project.id}
                 id={`project-${project.id}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open ${project.title} (${project.arabicTitle}) case study`}
                 ref={(el) => {
                   cardRefs.current[idx] = el;
                 }}
                 onClick={() => handleCardClick(project)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCardClick(project);
+                  }
+                }}
                 onMouseEnter={() => setHoveredId(project.id)}
-                onMouseLeave={() => {
-                  setHoveredId(null);
-                  setPressedId(null);
-                }}
-                onMouseDown={() => {
-                  setPressedId(project.id);
-                  triggerWave(project.id);
-                }}
-                onMouseUp={() => setPressedId(null)}
-                className={`group w-full md:w-[68%] lg:w-[64%] cursor-pointer select-none will-change-transform ${
+                onMouseLeave={() => setHoveredId(null)}
+                className={`group w-full md:w-[68%] lg:w-[64%] cursor-pointer select-none will-change-transform text-left focus:outline-none ${
                   isLeft ? 'md:self-start' : 'md:self-end'
                 }`}
               >
-                {/* Sharp 0px-Radius Rectangular Image Frame (NEVER grows in outer dimensions on hover/press) */}
+                {/* Sharp 0px-Radius Rectangular Image Frame — zero overlay clutter inside */}
                 <div
                   ref={(el) => {
                     imageBoxRefs.current[idx] = el;
                   }}
-                  className={`relative w-full aspect-[16/10] overflow-hidden rounded-none ${
-                    webglReady ? 'bg-transparent' : 'bg-[#141416]'
-                  }`}
+                  className="relative w-full aspect-[16/10] overflow-hidden rounded-none bg-transparent"
                 >
-                  {/* Image 1 Fallback (darkens and zooms strictly inside fixed frame) */}
-                  <img
-                    src={project.imageSrc}
-                    alt={`${project.title} — ${project.category}`}
-                    className={`w-full h-full object-cover rounded-none transition-[transform,filter] duration-500 ease-out ${fallbackZoomClass} ${
-                      isHovered ? 'brightness-[0.22]' : 'brightness-100'
-                    } ${webglReady ? 'opacity-0' : 'opacity-100'}`}
-                  />
-
-                  {/* Inside-Image Minimal Bottom-Left Overlay: Category + Title + Arrow Only (no top bar, no dates) */}
-                  <div
-                    className={`absolute inset-0 z-20 pointer-events-none flex flex-col justify-end p-4 sm:p-5 bg-gradient-to-t from-black/65 via-black/15 to-transparent transition-opacity duration-300 ${
-                      isHovered ? 'opacity-0' : 'opacity-100'
-                    }`}
-                  >
-                    <div className="flex flex-col items-start gap-1 text-white">
-                      <span className="font-pixel text-[9px] sm:text-[10px] tracking-wider uppercase text-white/75">
-                        {project.category}
-                      </span>
-                      <div className="inline-flex items-center gap-1.5 font-sans font-bold text-sm sm:text-base tracking-tight uppercase">
-                        <span>{project.title}</span>
-                        <ArrowUpRight className="w-4 h-4 shrink-0" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dot-Matrix Transition Pulse Layer */}
-                  <div className="absolute inset-0 z-20 pointer-events-none">
-                    <DotMatrixHoverOverlay isHovered={isHovered} />
-                  </div>
-
-                  {/* Subtle Darkening Veil between Image 1 and Image 2 transition */}
-                  <div
-                    className={`absolute inset-0 z-20 pointer-events-none bg-black/55 transition-opacity duration-300 ${
-                      isHovered ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  />
-
-                  {/* Image 2: Uploaded Hover Image (Nurabi -> Rivka -> Roblox Supportal) + 3px Center Wave */}
-                  <ProjectLogoReveal
-                    projectId={project.id}
-                    title={project.title}
-                    category={project.category}
-                    hoverImageSrc={project.hoverImageSrc}
-                    isHovered={isHovered}
-                    isPressed={isPressed}
-                    waveTrigger={waveTriggers[project.id] || 0}
-                    theme={theme}
-                  />
+                  {/* HTML Fallback (only visible when WebGL isn't active) */}
+                  {!webglReady && (
+                    <>
+                      <img
+                        src={project.imageSrc}
+                        alt={`${project.title} — ${project.category}`}
+                        className={`w-full h-full object-cover rounded-none transition-transform duration-500 ease-out ${fallbackZoomClass}`}
+                      />
+                      <ProjectLogoReveal
+                        title={project.title}
+                        hoverImageSrc={project.hoverImageSrc}
+                        isHovered={isHovered}
+                      />
+                    </>
+                  )}
                 </div>
 
-                {/* Below Image (Outside Image Frame): Project Name & Date ONLY */}
-                <div className="mt-3 flex items-baseline justify-between gap-4">
-                  <h3 className="text-sm sm:text-base font-bold tracking-tight uppercase font-sans transition-opacity duration-200 group-hover:opacity-80">
-                    {project.title}
-                  </h3>
+                {/* Below Image (Outside Image Frame): Project Name & Date */}
+                <div data-scroll-shade className="mt-3 flex items-baseline justify-between gap-4 will-change-transform">
+                  <div className="flex items-baseline gap-2.5">
+                    <h3 className="text-sm sm:text-base font-bold tracking-tight uppercase font-sans transition-opacity duration-200 group-hover:opacity-80">
+                      {project.title}
+                    </h3>
+                    <span className="text-xs font-medium opacity-65" dir="rtl">
+                      {project.arabicTitle}
+                    </span>
+                  </div>
                   <span className="font-pixel text-[11px] sm:text-xs opacity-70 tabular-nums shrink-0">
                     {project.years}
                   </span>
@@ -340,7 +355,7 @@ export function SelectedWorkSection({ onSelectProject, theme = 'dark' }: Selecte
         </div>
 
         {/* Quiet Unboxed Helper Caption */}
-        <div className="mt-14 flex items-center justify-center gap-2 text-[10px] font-pixel opacity-60 relative z-20">
+        <div data-scroll-shade className="mt-14 flex items-center justify-center gap-2 text-[10px] font-pixel opacity-60 relative z-20 will-change-transform">
           <span>+</span>
           <span>CLICK ANY PROJECT TO INSPECT CASE STUDY</span>
         </div>

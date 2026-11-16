@@ -1,13 +1,30 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import Lenis from 'lenis';
+import { ArrowLeft } from 'lucide-react';
 import { Project } from '../types';
-import { X, CheckCircle2, ExternalLink, Calendar, User, Layers, Sparkles, Smartphone, Globe, Gamepad2 } from 'lucide-react';
+import { TypewriterText } from './TypewriterEffects';
 
 interface ProjectModalProps {
   project: Project | null;
+  projects: Project[];
+  theme?: 'light' | 'dark';
+  onSelectProject: (project: Project) => void;
   onClose: () => void;
 }
 
-export function ProjectModal({ project, onClose }: ProjectModalProps) {
+export function ProjectModal({
+  project,
+  theme = 'dark',
+  onClose,
+}: ProjectModalProps) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(1600);
+
+  const rowHeight = 320;
+  const topOffset = 46;
+  const colPcts = [2.5, 34.5, 66.5, 97.5];
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -16,190 +33,350 @@ export function ProjectModal({ project, onClose }: ProjectModalProps) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Scoped Lenis smooth scrolling inside the detail page wrapper
+  useEffect(() => {
+    const wrapper = scrollContainerRef.current;
+    const content = scrollContentRef.current;
+    if (!project || !wrapper || !content) return;
+
+    wrapper.scrollTop = 0;
+
+    const modalLenis = new Lenis({
+      wrapper,
+      content,
+      smoothWheel: true,
+      lerp: 0.09,
+    });
+
+    let rafId = 0;
+    const onRaf = (time: number) => {
+      modalLenis.raf(time);
+      rafId = window.requestAnimationFrame(onRaf);
+    };
+    rafId = window.requestAnimationFrame(onRaf);
+
+    const updateHeight = () => {
+      const h = Math.max(content.scrollHeight, window.innerHeight * 1.4, 1400);
+      setContentHeight(h);
+    };
+    updateHeight();
+
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(content);
+    window.addEventListener('resize', updateHeight);
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+      modalLenis.destroy();
+    };
+  }, [project]);
+
   if (!project) return null;
+
+  const isDark = theme === 'dark';
+  const rowsCount = Math.ceil(contentHeight / rowHeight);
+  const gridPoints: { x: number; y: number }[] = [];
+  for (let r = 0; r <= rowsCount; r++) {
+    const y = r * rowHeight + topOffset;
+    colPcts.forEach((pct) => {
+      gridPoints.push({ x: pct, y });
+    });
+  }
 
   return (
     <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      ref={scrollContainerRef}
+      data-lenis-prevent
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${project.title} (${project.arabicTitle}) Case Study Page`}
+      className="fixed inset-0 z-50 overflow-y-auto transition-colors duration-300"
+      style={{
+        background: isDark
+          ? 'linear-gradient(155deg, #091559 0%, #060D3D 52%, #071048 100%)'
+          : 'linear-gradient(155deg, #BEE0FA 0%, #CEE8FC 50%, #C2E2FA 100%)',
+        color: 'var(--text-color)',
+      }}
     >
-      <div
-        data-lenis-prevent
-        className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-[#E7E5DF] text-[#111111] rounded-3xl border border-black/15 shadow-2xl p-6 sm:p-10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 w-9 h-9 rounded-full bg-black/10 hover:bg-black hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-          aria-label="Close modal"
+      <div ref={scrollContentRef} className="relative min-h-full w-full">
+        {/* Full-Page Architectural Segmented Grid + 4-Point Star '+' Intersections (Matches Landing Page) */}
+        <div
+          className="absolute inset-0 pointer-events-none z-0 overflow-hidden"
+          style={{ minHeight: `${contentHeight}px` }}
+          aria-hidden="true"
         >
-          <X className="w-5 h-5" />
-        </button>
+          {/* Vertical Grid Lines with 20px Gap Cutouts at Intersections */}
+          {colPcts.map((pct, colIdx) => (
+            <div
+              key={`modal-col-${colIdx}`}
+              className="absolute top-0 bottom-0 w-px"
+              style={{
+                left: `${pct}%`,
+                background: `repeating-linear-gradient(to bottom, var(--border-color) 0px, var(--border-color) calc(${rowHeight}px - 20px), transparent calc(${rowHeight}px - 20px), transparent ${rowHeight}px)`,
+                backgroundPositionY: `${topOffset + 10}px`,
+              }}
+            />
+          ))}
 
-        {/* Header Metadata */}
-        <div className="flex flex-wrap items-center gap-2 text-xs font-mono-code text-neutral-600 mb-3">
-          <span className="font-bold text-neutral-900">{project.category}</span>
-          <span>·</span>
-          <span>{project.years}</span>
-          <span>·</span>
-          <span>{project.role}</span>
-        </div>
+          {/* Horizontal Segmented Grid Rows */}
+          {Array.from({ length: rowsCount + 1 }).map((_, rowIdx) => {
+            const y = rowIdx * rowHeight + topOffset;
+            const segments = [
+              { left: '0px', right: 'calc(97.5% + 10px)' },
+              { left: 'calc(2.5% + 10px)', right: 'calc(65.5% + 10px)' },
+              { left: 'calc(34.5% + 10px)', right: 'calc(33.5% + 10px)' },
+              { left: 'calc(66.5% + 10px)', right: 'calc(2.5% + 10px)' },
+              { left: 'calc(97.5% + 10px)', right: '0px' },
+            ];
 
-        <h2 className="text-3xl sm:text-5xl font-black tracking-tight text-[#111111] uppercase font-sans mb-3">
-          {project.title}
-        </h2>
-        <p className="text-base sm:text-lg text-neutral-700 font-medium mb-6">
-          {project.tagline}
-        </p>
-
-        {/* Project Visual Showcase Banner */}
-        <div className="w-full rounded-2xl overflow-hidden mb-8 border border-black/10 p-6 sm:p-8 bg-gradient-to-br from-neutral-900 to-neutral-800 text-white shadow-inner">
-          <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-            <span className="font-mono-code text-xs text-zinc-400">INTERFACE SPECIFICATION &amp; UX ARTIFACTS</span>
-            <div className="flex gap-2">
-              {project.tags.map((tag, idx) => (
-                <span key={idx} className="text-[10px] font-mono-code px-2 py-0.5 rounded bg-white/10 text-zinc-300">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {project.previewType === 'arabic-edtech' && (
-            <div className="space-y-4 text-center">
-              <div className="text-2xl sm:text-3xl font-extrabold text-sky-300 font-sans dir-rtl">
-                منصتك المفضلة للحصول على دروس خصوصية عالية الجودة
+            return (
+              <div
+                key={`modal-row-${rowIdx}`}
+                className="absolute left-0 right-0 h-px"
+                style={{ top: `${y}px` }}
+              >
+                {segments.map((seg, segIdx) => (
+                  <div
+                    key={segIdx}
+                    className="absolute top-0 bottom-0"
+                    style={{
+                      left: seg.left,
+                      right: seg.right,
+                      backgroundColor: 'var(--border-color)',
+                    }}
+                  />
+                ))}
               </div>
-              <p className="text-xs sm:text-sm text-sky-100/80 max-w-lg mx-auto font-light leading-relaxed">
-                Dual-script Arabic &amp; Latin system with RTL grid layout, tailored for students and private instructors across Egypt, Saudi Arabia, and UAE.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-left">
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Typography</span>
-                  <span className="text-xs font-bold text-sky-200">Arabic Sans &amp; Plus Jakarta</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Calendar UX</span>
-                  <span className="text-xs font-bold text-sky-200">Instant Timezone Sync</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Video Classroom</span>
-                  <span className="text-xs font-bold text-sky-200">Interactive Whiteboard</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Tutor Dashboard</span>
-                  <span className="text-xs font-bold text-sky-200">Automated Payouts</span>
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })}
 
-          {project.previewType === 'desert-app' && (
-            <div className="space-y-4 text-center">
-              <div className="text-2xl sm:text-3xl font-extrabold text-amber-200 font-sans">
-                Rivka Wilderness Camps
-              </div>
-              <p className="text-xs sm:text-sm text-amber-100/80 max-w-lg mx-auto font-light leading-relaxed">
-                Designed for low-connectivity wilderness environments in Sinai &amp; Western Desert. Offline topo vector maps with Bedouin family host profiles.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-left">
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Navigation</span>
-                  <span className="text-xs font-bold text-amber-200">Offline Vector GPS</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Platform</span>
-                  <span className="text-xs font-bold text-amber-200">iOS &amp; Android Native</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Camp Host Engine</span>
-                  <span className="text-xs font-bold text-amber-200">Direct Bedouin Payout</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Emergency SOS</span>
-                  <span className="text-xs font-bold text-amber-200">Satellite Coordinates</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {project.previewType === 'game-hud' && (
-            <div className="space-y-4 text-center">
-              <div className="text-2xl sm:text-3xl font-extrabold text-purple-200 font-sans">
-                Supportal In-Game Virtual Economy
-              </div>
-              <p className="text-xs sm:text-sm text-purple-100/80 max-w-lg mx-auto font-light leading-relaxed">
-                Balancing tactile delight with ethical purchase hierarchy. Clear currency denomination to eliminate consumer cognitive load.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 text-left">
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Shop Screen</span>
-                  <span className="text-xs font-bold text-purple-200">Tiered Gacha &amp; Bundles</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Framerate</span>
-                  <span className="text-xs font-bold text-purple-200">Solid 60fps HUD Canvas</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Haptics</span>
-                  <span className="text-xs font-bold text-purple-200">Custom Spring Feedback</span>
-                </div>
-                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                  <span className="text-[10px] text-zinc-400 font-mono-code block">Adoption</span>
-                  <span className="text-xs font-bold text-purple-200">+42% Starter Bundles</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Detailed Case Study Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-black/8">
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider font-mono-code mb-3">
-              Design Deliverables
-            </h3>
-            <ul className="space-y-2 text-xs sm:text-sm text-neutral-700">
-              {project.deliverables.map((item, idx) => (
-                <li key={idx} className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-neutral-900 shrink-0" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-sm font-bold text-neutral-900 uppercase tracking-wider font-mono-code mb-3">
-              Business &amp; UX Impact
-            </h3>
-            <div className="grid grid-cols-1 gap-2.5">
-              {project.metrics.map((metric, idx) => (
-                <div
-                  key={idx}
-                  className="p-3 bg-black/[0.03] rounded-xl border border-black/5 font-mono-code text-xs sm:text-sm font-bold text-neutral-900 flex items-center justify-between"
+          {/* 4-Point '+' Star SVG Markers at Every Grid Intersection */}
+          {gridPoints.map((pt, idx) => (
+            <div
+              key={`star-${idx}`}
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center select-none"
+              style={{
+                left: `${pt.x}%`,
+                top: `${pt.y}px`,
+              }}
+            >
+              <div className="w-5 h-5 flex items-center justify-center">
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 16 16"
+                  fill="currentColor"
+                  style={{ color: 'var(--crosshair-color)' }}
+                  aria-hidden="true"
                 >
-                  <span>{metric}</span>
-                  <span className="text-emerald-700 text-xs font-semibold">VERIFIED</span>
-                </div>
-              ))}
+                  <path d="M8 0.5 L9.4 6.6 L15.5 8 L9.4 9.4 L8 15.5 L6.6 9.4 L0.5 8 L6.6 6.6 Z" />
+                </svg>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
 
-        {/* Bottom CTA */}
-        <div className="mt-8 pt-6 border-t border-black/8 flex items-center justify-between">
-          <span className="text-xs font-mono-code text-neutral-500">
-            CASE STUDY ARCHIVE // MOAMEN PORTFOLIO
-          </span>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 bg-neutral-900 text-white text-xs font-bold rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
+        {/* Sticky Minimal Header: Left (Moamen. + Back directly below) | Right (Active Project Underscored) */}
+        <header className="sticky top-0 z-30 pt-3 sm:pt-4 pb-2 px-[2.5%] sm:px-[3.5%] backdrop-blur-sm">
+          <div className="w-full grid grid-cols-12 items-start">
+            {/* Left: Brand Wordmark + Back directly underneath */}
+            <div className="col-span-6 flex flex-col items-start gap-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="font-editorial font-medium text-2xl sm:text-[26px] tracking-tight leading-none hover:opacity-75 transition-opacity cursor-pointer"
+              >
+                Moamen.
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] tracking-tight opacity-75 hover:opacity-100 transition-opacity cursor-pointer"
+              >
+                <ArrowLeft className="w-3 h-3" aria-hidden="true" />
+                <span>Back</span>
+              </button>
+            </div>
+
+            {/* Right: Only Active Project Label with Underscore / Underline */}
+            <div className="col-span-6 flex items-center justify-end pt-1 font-sans text-xs sm:text-sm font-medium tracking-tight">
+              <span dir="rtl" className="underline underline-offset-4 opacity-90">
+                _{project.arabicTitle}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Flow Over Architectural Grid */}
+        <main className="relative z-10 max-w-5xl mx-auto px-5 sm:px-10 pt-10 sm:pt-14 pb-24 space-y-12 sm:space-y-16">
+          {/* Centered Paired Heading */}
+          <section className="text-center flex flex-col items-center justify-center space-y-4">
+            <div className="font-pixel text-[10px] sm:text-[11px] uppercase tracking-[0.2em] opacity-70">
+              <span>// {project.category} · {project.years}</span>
+            </div>
+
+            <h1 className="flex flex-wrap items-baseline justify-center gap-x-4 sm:gap-x-6 gap-y-2 leading-none">
+              <span className="font-editorial font-medium text-5xl sm:text-7xl lg:text-[78px] tracking-tight uppercase">
+                <TypewriterText
+                  key={`en-title-${project.id}`}
+                  text={project.title}
+                  speedMs={45}
+                  delayMs={0}
+                  startOnView={false}
+                  showCursor={false}
+                />
+              </span>
+              <span className="font-editorial text-3xl sm:text-5xl opacity-30" aria-hidden="true">
+                /
+              </span>
+              <span
+                dir="rtl"
+                className="font-sans font-black text-4xl sm:text-6xl lg:text-[66px] tracking-tight"
+              >
+                <TypewriterText
+                  key={`ar-title-${project.id}`}
+                  text={project.arabicTitle}
+                  speedMs={65}
+                  delayMs={0}
+                  startOnView={false}
+                  showCursor={false}
+                />
+              </span>
+            </h1>
+
+            <p dir="rtl" className="font-sans text-xs sm:text-sm opacity-75 max-w-xl mx-auto leading-relaxed">
+              <TypewriterText
+                key={`tagline-${project.id}`}
+                text={project.tagline}
+                speedMs={16}
+                delayMs={0}
+                startOnView={false}
+                showCursor={false}
+              />
+            </p>
+          </section>
+
+          {/* ONE Single Gray ('رصاصي') Rounded-[20px] Details Box with ONLY 2 Layouts Typing Together Simultaneously */}
+          <section
+            aria-label="Platform details"
+            className="max-w-4xl mx-auto rounded-[20px] border p-6 sm:p-10 lg:p-12 space-y-8"
+            style={{
+              borderColor: isDark ? 'rgba(156, 163, 175, 0.32)' : 'rgba(107, 114, 128, 0.35)',
+              backgroundColor: isDark ? 'rgba(148, 163, 184, 0.16)' : 'rgba(148, 163, 184, 0.24)',
+            }}
           >
-            Close Overview
-          </button>
-        </div>
+            {/* Layout 1 (First): Platform Story & Purpose */}
+            <div dir="rtl" className="text-right space-y-4">
+              <div className="font-pixel text-[10px] uppercase tracking-[0.18em] opacity-60" dir="ltr">
+                01 // PLATFORM STORY &amp; PURPOSE
+              </div>
+              <p className="font-sans text-lg sm:text-2xl font-medium leading-[1.75] min-h-[5rem]">
+                <TypewriterText
+                  key={`narrative-${project.id}`}
+                  text={project.writtenNarrative}
+                  speedMs={14}
+                  delayMs={0}
+                  startOnView={false}
+                  showCursor={true}
+                />
+              </p>
+              <p className="font-sans text-xs sm:text-sm opacity-80 leading-relaxed">
+                <TypewriterText
+                  key={`desc-${project.id}`}
+                  text={project.description}
+                  speedMs={14}
+                  delayMs={0}
+                  startOnView={false}
+                  showCursor={false}
+                />
+              </p>
+            </div>
+
+            {/* Layout 2 (Second): Launch Date, Grade Stages / Scope, Appointment System & Platform Status */}
+            <div
+              dir="rtl"
+              className="pt-7 border-t text-right"
+              style={{ borderColor: isDark ? 'rgba(156, 163, 175, 0.24)' : 'rgba(107, 114, 128, 0.26)' }}
+            >
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                {project.scheduleTiles.map((tile, idx) => (
+                  <div key={`${project.id}-meta-${idx}`} className="space-y-1.5">
+                    <div className="font-sans text-[11px] opacity-65">
+                      <TypewriterText
+                        key={`tile-lbl-${project.id}-${idx}`}
+                        text={tile.label}
+                        speedMs={28}
+                        delayMs={0}
+                        startOnView={false}
+                        showCursor={false}
+                      />
+                    </div>
+                    <div className="font-sans text-xs sm:text-sm font-bold leading-snug">
+                      <TypewriterText
+                        key={`tile-val-${project.id}-${idx}`}
+                        text={tile.value}
+                        speedMs={24}
+                        delayMs={0}
+                        startOnView={false}
+                        showCursor={false}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Clean Unboxed 0px-Radius Visual Frames Matching Landing Page Work Grid */}
+          <section aria-label="Project visual interfaces" className="space-y-10 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+              <figure className="space-y-2.5">
+                <div className="w-full aspect-[16/10] overflow-hidden rounded-none">
+                  <img
+                    src={project.imageSrc}
+                    alt={`${project.title} main showcase interface`}
+                    className="w-full h-full object-cover block rounded-none"
+                  />
+                </div>
+                <figcaption className="flex items-baseline justify-between font-pixel text-[10px] uppercase opacity-70">
+                  <span>{project.title} // PRIMARY VIEW</span>
+                  <span>{project.years}</span>
+                </figcaption>
+              </figure>
+
+              <figure className="space-y-2.5">
+                <div className="w-full aspect-[16/10] overflow-hidden rounded-none">
+                  <img
+                    src={project.hoverImageSrc}
+                    alt={`${project.title} identity and system view`}
+                    className="w-full h-full object-cover block rounded-none"
+                  />
+                </div>
+                <figcaption className="flex items-baseline justify-between font-pixel text-[10px] uppercase opacity-70">
+                  <span dir="rtl">{project.arabicTitle} // IDENTITY &amp; SYSTEM</span>
+                  <span>{project.category}</span>
+                </figcaption>
+              </figure>
+            </div>
+          </section>
+
+          {/* Single Centered Bottom Action: Back to Home Page */}
+          <footer
+            className="max-w-4xl mx-auto pt-8 border-t flex items-center justify-center"
+            style={{ borderColor: isDark ? 'rgba(156, 163, 175, 0.24)' : 'rgba(107, 114, 128, 0.24)' }}
+          >
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2 font-pixel text-[11px] sm:text-xs uppercase tracking-[0.16em] border-b border-current pb-1 opacity-85 hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>BACK TO HOME PAGE</span>
+            </button>
+          </footer>
+        </main>
       </div>
     </div>
   );

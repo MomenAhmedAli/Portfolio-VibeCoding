@@ -9,21 +9,23 @@ import { useLenis } from 'lenis/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { addFrameEffect, getLenisScrollSnapshot } from './lib/lenisScrollBus';
+import { computeEdgeShadeMetrics } from './lib/scrollShade';
 import { ArchitecturalGrid } from './components/ArchitecturalGrid';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { BioStatsSection } from './components/BioStatsSection';
-import { SelectedWorkSection } from './components/SelectedWorkSection';
+import { SelectedWorkSection, PROJECTS_DATA } from './components/SelectedWorkSection';
 import { ShipVoyageSection } from './components/ShipVoyageSection';
 import { CallToActionSection } from './components/CallToActionSection';
 import { ProjectModal } from './components/ProjectModal';
 import { ContactDrawer } from './components/ContactDrawer';
-import { LiveStatusBar } from './components/LiveStatusBar';
-import { DualCompassScrollRail } from './components/DualCompassScrollRail';
+import { CenterCylinderScroll } from './components/CenterCylinderScroll';
 import { DotMatrixTransition } from './components/DotMatrixTransition';
+import { LoadingScreen } from './components/LoadingScreen';
 import { Project } from './types';
 
 gsap.registerPlugin(ScrollTrigger);
+gsap.ticker.lagSmoothing(0);
 
 export default function App() {
   const [scrollVelocity, setScrollVelocity] = useState(0);
@@ -31,6 +33,12 @@ export default function App() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [transitionId, setTransitionId] = useState(0);
+  const [isLoading, setIsLoading] = useState(
+    () => typeof window === 'undefined' || !window.location.search.includes('autostart=1')
+  );
+  const [heroReady, setHeroReady] = useState(
+    () => typeof window !== 'undefined' && window.location.search.includes('autostart=1')
+  );
 
   // Sync theme attribute on root element
   useEffect(() => {
@@ -47,7 +55,9 @@ export default function App() {
   };
 
   const shiftElsRef = useRef<HTMLElement[]>([]);
+  const shadeElsRef = useRef<HTMLElement[]>([]);
   const smoothedVelRef = useRef(0);
+  const curlActivityRef = useRef(0);
 
   // Subscribe to Lenis scroll event emitted inside unified ScrollRoot frame
   const handleLenisScroll = useCallback((instance: Lenis) => {
@@ -59,6 +69,7 @@ export default function App() {
 
   useEffect(() => {
     shiftElsRef.current = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-shift]'));
+    shadeElsRef.current = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-shade]'));
 
     let prevScrollY: number | null = null;
 
@@ -68,17 +79,42 @@ export default function App() {
       const rawVel = prevScrollY == null ? 0 : (currY - prevScrollY) / dt;
       prevScrollY = currY;
 
-      // Ultra-calm normalization and slow easing so page shift glides smoothly with shader
-      const target = Math.max(-1, Math.min(1, rawVel / 2000));
-      const tau = Math.abs(target) > Math.abs(smoothedVelRef.current) ? 0.18 : 0.46;
+      // Exact same velocity smoothing curve as DomSyncWebGL so text & image edge shade stay locked
+      const target = Math.max(-1, Math.min(1, rawVel / 1350));
+      const tau = Math.abs(target) > Math.abs(smoothedVelRef.current) ? 0.14 : 0.42;
       const alpha = 1 - Math.exp(-dt / tau);
       smoothedVelRef.current += (target - smoothedVelRef.current) * alpha;
 
-      const dragY = (-smoothedVelRef.current * 3.2).toFixed(2);
-      const skewDeg = (smoothedVelRef.current * 0.1).toFixed(3);
+      const activityTarget = Math.min(1, Math.abs(rawVel) / 1350);
+      const actTau = activityTarget > curlActivityRef.current ? 0.14 : 0.42;
+      curlActivityRef.current +=
+        (activityTarget - curlActivityRef.current) * (1 - Math.exp(-dt / actTau));
+
+      const dragY = (-smoothedVelRef.current * 2.8).toFixed(2);
+      const skewDeg = (smoothedVelRef.current * 0.08).toFixed(3);
 
       for (let i = 0; i < shiftElsRef.current.length; i++) {
         shiftElsRef.current[i].style.transform = `translate3d(0, ${dragY}px, 0) skewY(${skewDeg}deg)`;
+      }
+
+      const vh = window.innerHeight || 900;
+      for (let i = 0; i < shadeElsRef.current.length; i++) {
+        const el = shadeElsRef.current[i];
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < -120 || rect.top > vh + 120) continue;
+
+        const centerY = rect.top + rect.height * 0.5;
+        const m = computeEdgeShadeMetrics(
+          centerY,
+          vh,
+          curlActivityRef.current,
+          smoothedVelRef.current
+        );
+
+        el.style.transform = `perspective(1100px) translate3d(0, ${m.translateY.toFixed(
+          2
+        )}px, 0) rotateX(${m.rotateXDeg.toFixed(2)}deg) scaleX(${m.scaleX.toFixed(4)})`;
+        el.style.filter = '';
       }
     });
 
@@ -92,15 +128,15 @@ export default function App() {
     };
   }, []);
 
-  // Pause Lenis background scroll while a modal or drawer is open
+  // Pause Lenis background scroll while loading, modal, or drawer is open
   useEffect(() => {
     if (!lenis) return;
-    if (selectedProject || isContactOpen) {
+    if (isLoading || selectedProject || isContactOpen) {
       lenis.stop();
     } else {
       lenis.start();
     }
-  }, [lenis, selectedProject, isContactOpen]);
+  }, [lenis, isLoading, selectedProject, isContactOpen]);
 
   const scrollToTarget = (target: string | number) => {
     if (lenis) {
@@ -125,30 +161,46 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen flex flex-col relative selection:bg-neutral-900 selection:text-white transition-colors duration-300"
+      className="min-h-screen flex flex-col relative transition-colors duration-300"
       style={{ backgroundColor: 'var(--bg-color)', color: 'var(--text-color)' }}
     >
+      {/* Portfolio Work Showcase Loading Screen before revealing Page 1 */}
+      {isLoading && (
+        <LoadingScreen
+          theme={theme}
+          onRevealStart={() => setHeroReady(true)}
+          onComplete={() => {
+            setHeroReady(true);
+            setIsLoading(false);
+          }}
+        />
+      )}
+
       {/* Radial Dot-Matrix Cell Transition fitted to Light/Dark Color Theme */}
       <DotMatrixTransition theme={theme} transitionId={transitionId} />
 
-      {/* Bilateral Left & Right Center-Vertical Shaded Compass Scroll Rails */}
-      <DualCompassScrollRail onScrollToProgress={scrollToProgress} theme={theme} />
-
-      {/* Architectural Grid with Starlight & Mouse-Tracking Light Behind */}
+      {/* Architectural Grid with Ambient Lighting Behind */}
       <ArchitecturalGrid rowHeight={320} theme={theme} />
 
       {/* Top Nav Bar */}
       <Header
         onOpenContact={() => setIsContactOpen(true)}
         onScrollToWork={() => scrollToTarget('#work')}
+        onScrollToAbout={() => scrollToTarget('#stats')}
+        onScrollToContact={() => scrollToTarget('#contact')}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
 
       {/* Main Content Flow */}
       <main className="flex-1 flex flex-col relative z-10 pt-[48px]">
-        {/* 1. Hero Section: 3D Rolling Greetings in 8 Languages + GREETINGS. */}
-        <HeroSection scrollVelocity={scrollVelocity} theme={theme} />
+        {/* 1. Hero Section: Reference Layout over ArchitecturalGrid Background */}
+        <HeroSection
+          scrollVelocity={scrollVelocity}
+          theme={theme}
+          isReady={heroReady}
+          onOpenContact={() => setIsContactOpen(true)}
+        />
 
         {/* 2. Bio & Experience Row + About Me (//01) */}
         <BioStatsSection />
@@ -162,13 +214,16 @@ export default function App() {
         {/* 4. Scroll-Driven 3D Sky Ship -> Telescope -> Rapid Dive -> Full-Body Helmsman */}
         <ShipVoyageSection theme={theme} />
 
-        {/* 5. Final Frame: Get ready for beyond (//03) + Behance/LinkedIn + Name & Date */}
-        <CallToActionSection />
+        {/* 5. Final Frame: Get ready for beyond (//03) + Contact/Behance/LinkedIn + Name & Date */}
+        <CallToActionSection onOpenContact={() => setIsContactOpen(true)} />
       </main>
 
       {/* Interactive Case Study Modal */}
       <ProjectModal
         project={selectedProject}
+        projects={PROJECTS_DATA}
+        theme={theme}
+        onSelectProject={(project) => setSelectedProject(project)}
         onClose={() => setSelectedProject(null)}
       />
 
@@ -178,8 +233,8 @@ export default function App() {
         onClose={() => setIsContactOpen(false)}
       />
 
-      {/* Fixed Transparent Bottom Telemetry Bar */}
-      <LiveStatusBar onScrollToTop={() => scrollToTarget(0)} />
+      {/* Centered Elongated Cylindrical Scroll Controller */}
+      <CenterCylinderScroll onScrollToProgress={scrollToProgress} theme={theme} />
     </div>
   );
 }

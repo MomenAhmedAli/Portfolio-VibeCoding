@@ -22,9 +22,9 @@ export function BioStatsSection() {
         {
           yPercent: 0,
           opacity: 1,
-          duration: 0.68,
-          stagger: 0.09,
-          ease: 'power3.out',
+          duration: 0.62,
+          stagger: 0.04,
+          ease: 'power2.out',
           paused: true,
         }
       );
@@ -51,7 +51,7 @@ export function BioStatsSection() {
     >
       <div data-scroll-shift className="w-full px-2 sm:px-3 will-change-transform">
         {/* Tier 1 Marker (//01) */}
-        <div className="flex items-center justify-end mb-4">
+        <div data-scroll-shade className="flex items-center justify-end mb-4 will-change-transform">
           <span className="font-pixel text-xs sm:text-sm font-semibold opacity-75 tracking-tight shrink-0 inline-flex items-baseline">
             <span>//</span>
             <RollingNumber value="01" />
@@ -62,9 +62,10 @@ export function BioStatsSection() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 md:gap-6 items-start">
           {/* Column 1: Graduate / Software Engineer */}
           <div
+            data-scroll-shade
             onMouseEnter={() => setHoveredCol(0)}
             onMouseLeave={() => setHoveredCol(null)}
-            className="md:col-span-4 group cursor-default"
+            className="md:col-span-4 group cursor-default will-change-transform"
           >
             <div className="relative py-2 transition-transform duration-300 ease-out group-hover:translate-x-1.5 group-hover:-translate-y-0.5">
               <div className="overflow-hidden">
@@ -83,8 +84,8 @@ export function BioStatsSection() {
                 >
                   <TypewriterText
                     text="Software Engineer"
-                    speedMs={32}
-                    delayMs={120}
+                    speedMs={30}
+                    delayMs={0}
                     showCursor={hoveredCol === 0}
                   />
                 </p>
@@ -100,12 +101,13 @@ export function BioStatsSection() {
 
           {/* Column 2: +3 YEAR (Rolling Scroll Odometer + Bottom-to-Top Masked Reveal) */}
           <div
+            data-scroll-shade
             onMouseEnter={() => {
               setHoveredCol(1);
               setHoverTick((t) => t + 1);
             }}
             onMouseLeave={() => setHoveredCol(null)}
-            className="md:col-span-4 group cursor-default"
+            className="md:col-span-4 group cursor-default will-change-transform"
           >
             <div className="relative py-2 transition-transform duration-300 ease-out group-hover:translate-x-1.5 group-hover:-translate-y-0.5">
               <div className="overflow-hidden">
@@ -126,7 +128,7 @@ export function BioStatsSection() {
                 >
                   <ScrambleLines
                     text="LEARN TO MAKE DESIGN"
-                    delayMs={120}
+                    delayMs={0}
                     triggerKey={hoveredCol === 1 ? 1 : 0}
                   />
                 </p>
@@ -142,9 +144,10 @@ export function BioStatsSection() {
 
           {/* Column 3: Passionate at / Product Design */}
           <div
+            data-scroll-shade
             onMouseEnter={() => setHoveredCol(2)}
             onMouseLeave={() => setHoveredCol(null)}
-            className="md:col-span-4 group cursor-default"
+            className="md:col-span-4 group cursor-default will-change-transform"
           >
             <div className="relative py-2 transition-transform duration-300 ease-out group-hover:translate-x-1.5 group-hover:-translate-y-0.5">
               <div className="overflow-hidden">
@@ -163,8 +166,8 @@ export function BioStatsSection() {
                 >
                   <TypewriterText
                     text="Product Design"
-                    speedMs={32}
-                    delayMs={240}
+                    speedMs={30}
+                    delayMs={0}
                     showCursor={hoveredCol === 2}
                   />
                 </p>

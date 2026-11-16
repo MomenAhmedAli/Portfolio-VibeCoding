@@ -1,18 +1,35 @@
+export interface ScheduleTile {
+  label: string;
+  value: string;
+}
+
+export interface FeatureStep {
+  code: string;
+  title: string;
+  detail: string;
+}
+
 export interface Project {
   id: string;
   title: string;
+  arabicTitle: string;
   category: string;
   years: string;
+  role: string;
   tagline: string;
   description: string;
+  writtenNarrative: string;
+  imageSrc: string;
+  hoverImageSrc: string;
   badge?: string;
   tags: string[];
-  role: string;
+  scheduleTiles: ScheduleTile[];
+  workflowSteps: FeatureStep[];
   deliverables: string[];
   metrics: string[];
   colorTheme: string;
   accentBg: string;
-  previewType: 'arabic-edtech' | 'desert-app' | 'game-hud';
+  previewType: 'tawreed-b2b' | 'arabic-edtech' | 'desert-app';
 }
 
 export interface HorizontalCard {

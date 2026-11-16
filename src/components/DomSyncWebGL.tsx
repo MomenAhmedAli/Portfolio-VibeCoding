@@ -6,6 +6,7 @@ import { addFrameEffect, getLenisScrollSnapshot } from '../lib/lenisScrollBus';
 export interface DomSyncProjectSpec {
   id: string;
   imageSrc: string;
+  hoverImageSrc: string;
 }
 
 interface DomSyncWebGLProps {
@@ -13,8 +14,7 @@ interface DomSyncWebGLProps {
   imageBoxRefs: MutableRefObject<(HTMLDivElement | null)[]>;
   cardRefs: MutableRefObject<(HTMLDivElement | null)[]>;
   hoveredId: string | null;
-  pressedId?: string | null;
-  waveTriggers?: Record<string, number>;
+  theme?: 'light' | 'dark';
   onReadyChange?: (ready: boolean) => void;
 }
 
@@ -35,11 +35,9 @@ function createCurlStrengthSampler() {
     const rawSignedVelocity = rawDeltaY / dt;
     const velocity = Math.abs(rawSignedVelocity);
 
-    // Normalize scroll speed gently into target curl activity.
     const target = THREE.MathUtils.clamp(velocity / 1350, 0, 1);
     const signedTarget = THREE.MathUtils.clamp(rawSignedVelocity / 1350, -1, 1);
 
-    // Slower, ultra-smooth attack and release so shader curvature & shade settle gently.
     const tau = target > activity ? 0.14 : 0.42;
     const alpha = 1 - Math.exp(-dt / tau);
     activity += (target - activity) * alpha;
@@ -48,15 +46,15 @@ function createCurlStrengthSampler() {
     const signedAlpha = 1 - Math.exp(-dt / signedTau);
     signedActivity += (signedTarget - signedActivity) * signedAlpha;
 
-    // Map the smoothed activity to the maximum curl strength.
     return {
       curlStrength: 0.048 * activity,
+      curlActivity: activity,
       signedVelocity: signedActivity,
     };
   };
 }
 
-const VERTEX_SHADER = `
+const VERTEX_SHADER = /* glsl */ `
   uniform float uCurlStrength;
   uniform float uSignedVelocity;
   uniform vec4 uCardRect;
@@ -74,23 +72,25 @@ const VERTEX_SHADER = `
 
     vec3 pos = position;
 
-    // Lift edges gently forward in 3D when approaching the top or bottom edges of the screen
-    pos.z += profile * (uCurlStrength * 850.0 + abs(uSignedVelocity) * 35.0);
+    // Subtle ambient + scroll-driven 3D lift near top/bottom viewport edges
+    pos.z += profile * (18.0 + uCurlStrength * 880.0 + abs(uSignedVelocity) * 35.0);
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
 `;
 
-const FRAGMENT_SHADER = `
+const FRAGMENT_SHADER = /* glsl */ `
   uniform sampler2D uTexture;
+  uniform sampler2D uHoverTexture;
   uniform float uCurlStrength;
+  uniform float uCurlActivity;
   uniform float uOpacity;
   uniform float uHover;
-  uniform float uPress;
-  uniform float uWave;
   uniform float uImageAspect;
+  uniform float uHoverAspect;
   uniform float uPlaneAspect;
   uniform vec4 uCardRect;
+  uniform vec3 uShadeTint;
   varying vec2 vUv;
   varying vec2 vScreenUv;
 
@@ -98,8 +98,9 @@ const FRAGMENT_SHADER = `
     float centered = 2.0 * clamp(screenUv.y, 0.0, 1.0) - 1.0;
     float profile = 1.0 - sqrt(max(0.0, 1.0 - centered * centered));
 
-    // Higher speed increases uCurlStrength and compresses X near the top and bottom.
-    float uvScale = 1.0 - profile * uCurlStrength;
+    // Preserve a subtle constant curl plus strong scroll-driven lens curvature
+    float totalCurl = 0.008 + uCurlStrength;
+    float uvScale = 1.0 - profile * totalCurl;
     float distortedX = (screenUv.x - 0.5) * uvScale + 0.5;
     return vec2(distortedX, screenUv.y);
   }
@@ -115,31 +116,39 @@ const FRAGMENT_SHADER = `
   }
 
   void main() {
-    // Apply exact screen-space semicircular lens curl
+    // 1. Apply exact screen-space semicircular lens curl on BOTH idle & hovered image
     vec2 curledScreenUv = applyCurl(vScreenUv);
     vec2 curledLocalUv = (curledScreenUv - uCardRect.xy) / max(uCardRect.zw, vec2(0.0001));
     curledLocalUv = clamp(curledLocalUv, 0.0, 1.0);
 
-    // Concentric shockwave ripple expanding outward from center (0.5, 0.5) to edges on press/click
-    vec2 toCenter = curledLocalUv - vec2(0.5);
-    float dist = length(toCenter);
-    float waveFront = uWave * 0.85;
-    float ringBand = exp(-pow((dist - waveFront) * 14.0, 2.0)) * (1.0 - uWave);
-    vec2 waveOffset = normalize(toCenter + vec2(0.0001)) * sin((dist - waveFront) * 28.0) * ringBand * 0.028;
+    // 2. Primary image (subtle zoom on hover) & Alternate image (Zoom-In 1.15 -> Zoom-Out 1.0 on hover)
+    float baseZoom = 1.0 - uHover * 0.045;
+    vec2 baseUv = getCoverUv((curledLocalUv - 0.5) * baseZoom + 0.5, uImageAspect, uPlaneAspect);
+    vec4 baseTex = texture2D(uTexture, baseUv);
 
-    // Strictly internal UV zoom-in on hover and zoom-out pulse on press (never resizes card)
-    float hoverScale = 1.0 - uHover * 0.065 + uPress * 0.035;
-    vec2 zoomedUv = (curledLocalUv + waveOffset - 0.5) * hoverScale + 0.5;
+    float hoverZoom = mix(1.15, 1.0, uHover);
+    vec2 hoverUv = getCoverUv((curledLocalUv - 0.5) * hoverZoom + 0.5, uHoverAspect, uPlaneAspect);
+    vec4 hoverTex = texture2D(uHoverTexture, hoverUv);
 
-    // Fit image with object-cover aspect preservation
-    vec2 finalUv = getCoverUv(zoomedUv, uImageAspect, uPlaneAspect);
-    vec4 texColor = texture2D(uTexture, finalUv);
+    // 3. Circular center-to-edges wipe driven smoothly by uHover (no click recoil)
+    float aspectComp = uPlaneAspect;
+    vec2 centered = (curledLocalUv - 0.5) * vec2(aspectComp, 1.0);
+    float maxRadius = length(vec2(0.5 * aspectComp, 0.5)) + 0.06;
+    float revealRadius = uHover * maxRadius;
+    float feather = 0.055;
+    float hoverMask = 1.0 - smoothstep(revealRadius - feather, revealRadius + feather, length(centered));
+    hoverMask *= smoothstep(0.0, 0.08, uHover);
 
-    // Smoothly darken primary image on hover and add subtle wave crest highlight
-    texColor.rgb *= mix(1.0, 0.22, uHover);
-    texColor.rgb += vec3(0.28, 0.36, 0.55) * ringBand;
+    vec4 blendedTex = mix(baseTex, hoverTex, hoverMask);
 
-    gl_FragColor = vec4(texColor.rgb, texColor.a * uOpacity);
+    // 4. Persistent scroll-edge shade (mirrors computeEdgeShadeMetrics) active EVEN when hovered
+    float centeredY = 2.0 * clamp(vScreenUv.y, 0.0, 1.0) - 1.0;
+    float edgeProfile = 1.0 - sqrt(max(0.0, 1.0 - centeredY * centeredY));
+    float edgeShade = clamp(edgeProfile * (0.14 + uCurlActivity * 0.38), 0.0, 0.52);
+
+    vec3 finalRgb = mix(blendedTex.rgb, uShadeTint, edgeShade);
+
+    gl_FragColor = vec4(finalRgb, blendedTex.a * uOpacity);
     #include <colorspace_fragment>
   }
 `;
@@ -148,11 +157,10 @@ interface PlaneEntry {
   id: string;
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
   texture: THREE.Texture;
+  hoverTexture: THREE.Texture;
   imageAspect: number;
+  hoverAspect: number;
   hoverAmount: number;
-  pressAmount: number;
-  lastWaveTrigger: number;
-  waveProgress: number;
 }
 
 export function DomSyncWebGL({
@@ -160,19 +168,15 @@ export function DomSyncWebGL({
   imageBoxRefs,
   cardRefs,
   hoveredId,
-  pressedId = null,
-  waveTriggers = {},
+  theme = 'dark',
   onReadyChange,
 }: DomSyncWebGLProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hoveredIdRef = useRef(hoveredId);
   hoveredIdRef.current = hoveredId;
 
-  const pressedIdRef = useRef(pressedId);
-  pressedIdRef.current = pressedId;
-
-  const waveTriggersRef = useRef(waveTriggers);
-  waveTriggersRef.current = waveTriggers;
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
@@ -199,6 +203,7 @@ export function DomSyncWebGL({
       renderer = new THREE.WebGLRenderer({
         alpha: true,
         antialias: !isSoftwareGl,
+        preserveDrawingBuffer: isSoftwareGl,
         powerPreference: 'high-performance',
       });
     } catch {
@@ -236,7 +241,7 @@ export function DomSyncWebGL({
     const sharedGeometry = new THREE.PlaneGeometry(1, 1, 32, 32);
     const textureLoader = new THREE.TextureLoader();
     const entries: PlaneEntry[] = [];
-    let loadedCount = 0;
+    let loadedBaseCount = 0;
 
     projectsRef.current.forEach((proj) => {
       const texture = textureLoader.load(proj.imageSrc, (tex) => {
@@ -252,26 +257,43 @@ export function DomSyncWebGL({
           material.uniforms.uImageAspect.value = entry.imageAspect;
         }
 
-        loadedCount += 1;
-        if (loadedCount === projectsRef.current.length) {
+        loadedBaseCount += 1;
+        if (loadedBaseCount === projectsRef.current.length) {
           onReadyChangeRef.current?.(true);
         }
       });
 
+      const hoverTexture = textureLoader.load(proj.hoverImageSrc, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.needsUpdate = true;
+
+        const img = tex.image as { width?: number; height?: number } | undefined;
+        if (img && img.width && img.height) {
+          entry.hoverAspect = img.width / img.height;
+          material.uniforms.uHoverAspect.value = entry.hoverAspect;
+        }
+      });
+
       texture.colorSpace = THREE.SRGBColorSpace;
+      hoverTexture.colorSpace = THREE.SRGBColorSpace;
 
       const material = new THREE.ShaderMaterial({
         uniforms: {
           uTexture: { value: texture },
+          uHoverTexture: { value: hoverTexture },
           uCurlStrength: { value: 0 },
+          uCurlActivity: { value: 0 },
           uSignedVelocity: { value: 0 },
           uOpacity: { value: 0 },
           uHover: { value: 0 },
-          uPress: { value: 0 },
-          uWave: { value: 1 },
           uImageAspect: { value: 1.6 },
+          uHoverAspect: { value: 1.6 },
           uPlaneAspect: { value: 1.6 },
           uCardRect: { value: new THREE.Vector4(0, 0, 1, 1) },
+          uShadeTint: { value: new THREE.Color(0x060d3d) },
         },
         vertexShader: VERTEX_SHADER,
         fragmentShader: FRAGMENT_SHADER,
@@ -287,55 +309,25 @@ export function DomSyncWebGL({
         id: proj.id,
         mesh,
         texture,
+        hoverTexture,
         imageAspect: 1.6,
+        hoverAspect: 1.6,
         hoverAmount: 0,
-        pressAmount: 0,
-        lastWaveTrigger: 0,
-        waveProgress: 1,
       };
       entries.push(entry);
     });
 
     const sampleCurl = createCurlStrengthSampler();
     let disposed = false;
-    let gpuBusy = false;
-    let cooldownUntil = 0;
-    let fenceTimerId = 0;
 
-    const scheduleSoftwareSync = () => {
-      const gl = renderer.getContext() as WebGL2RenderingContext;
-      const sync = gl.fenceSync ? gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0) : null;
-      if (!sync) {
-        gpuBusy = false;
-        cooldownUntil = performance.now() + 80;
-        return;
-      }
-      gl.flush();
-      const poll = () => {
-        if (disposed) {
-          gl.deleteSync(sync);
-          return;
-        }
-        const state = gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          fenceTimerId = window.setTimeout(poll, 5);
-        } else {
-          gl.deleteSync(sync);
-          gpuBusy = false;
-          cooldownUntil = performance.now() + 80;
-        }
-      };
-      fenceTimerId = window.setTimeout(poll, 5);
-    };
-
-    // Execute inside the shared post-Lenis frame loop right after DOM & ScrollBus update
-    const removeEffect = addFrameEffect(20, (timeMs, delta) => {
+    const removeEffect = addFrameEffect(20, (_timeMs, delta) => {
       if (disposed) return;
 
-      // Read fresh scroll snapshot recorded after lenis.raf() this frame
       const scrollY = getLenisScrollSnapshot().scrollTop;
-      const { curlStrength, signedVelocity } = sampleCurl(scrollY, delta);
+      const { curlStrength, curlActivity, signedVelocity } = sampleCurl(scrollY, delta);
+      const shadeHex = themeRef.current === 'dark' ? 0x060d3d : 0x1e3a8a;
 
+      let anyVisible = false;
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         const imgEl = imageBoxRefs.current[i];
@@ -347,7 +339,8 @@ export function DomSyncWebGL({
         }
 
         const rect = imgEl.getBoundingClientRect();
-        const cardOpacity = parseFloat(window.getComputedStyle(cardEl).opacity) || 0;
+        const rawStyleOpacity = cardEl.style.opacity;
+        const cardOpacity = rawStyleOpacity === '' ? 1 : parseFloat(rawStyleOpacity) || 0;
 
         if (
           rect.width <= 1 ||
@@ -360,6 +353,7 @@ export function DomSyncWebGL({
           continue;
         }
 
+        anyVisible = true;
         entry.mesh.visible = true;
         entry.mesh.scale.set(rect.width, rect.height, 1);
         entry.mesh.position.set(
@@ -372,35 +366,18 @@ export function DomSyncWebGL({
         entry.hoverAmount = THREE.MathUtils.damp(
           entry.hoverAmount,
           targetHover,
-          10,
+          8.5,
           Math.min(delta, 0.05)
         );
-
-        const targetPress = pressedIdRef.current === entry.id ? 1 : 0;
-        entry.pressAmount = THREE.MathUtils.damp(
-          entry.pressAmount,
-          targetPress,
-          14,
-          Math.min(delta, 0.05)
-        );
-
-        const latestTrigger = waveTriggersRef.current[entry.id] || 0;
-        if (latestTrigger !== entry.lastWaveTrigger) {
-          entry.lastWaveTrigger = latestTrigger;
-          entry.waveProgress = 0;
-        }
-        if (entry.waveProgress < 1) {
-          entry.waveProgress = Math.min(1, entry.waveProgress + Math.min(delta, 0.05) * 1.75);
-        }
 
         const uniforms = entry.mesh.material.uniforms;
         uniforms.uCurlStrength.value = curlStrength;
+        uniforms.uCurlActivity.value = curlActivity;
         uniforms.uSignedVelocity.value = signedVelocity;
         uniforms.uOpacity.value = cardOpacity;
         uniforms.uHover.value = entry.hoverAmount;
-        uniforms.uPress.value = entry.pressAmount;
-        uniforms.uWave.value = entry.waveProgress;
         uniforms.uPlaneAspect.value = rect.width / Math.max(rect.height, 1);
+        (uniforms.uShadeTint.value as THREE.Color).setHex(shadeHex);
         (uniforms.uCardRect.value as THREE.Vector4).set(
           rect.left / Math.max(vw, 1),
           (vh - rect.bottom) / Math.max(vh, 1),
@@ -409,28 +386,23 @@ export function DomSyncWebGL({
         );
       }
 
-      if (isSoftwareGl && (gpuBusy || timeMs < cooldownUntil)) {
-        return;
-      }
-
-      renderer.render(scene, camera);
-
-      if (isSoftwareGl) {
-        gpuBusy = true;
-        scheduleSoftwareSync();
+      if (anyVisible) {
+        renderer.render(scene, camera);
+      } else {
+        renderer.clear();
       }
     });
 
     return () => {
       disposed = true;
       removeEffect();
-      window.clearTimeout(fenceTimerId);
       window.removeEventListener('resize', syncCamera);
 
       entries.forEach((entry) => {
         scene.remove(entry.mesh);
         entry.mesh.material.dispose();
         entry.texture.dispose();
+        entry.hoverTexture.dispose();
       });
       sharedGeometry.dispose();
       renderer.dispose();
